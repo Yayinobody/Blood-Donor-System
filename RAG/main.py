@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 import os
 import sys
 from dotenv import load_dotenv
@@ -84,8 +83,3 @@ if __name__ == "__main__":
         query(sys.argv[2])
     else:
         print(f"Unknown command: {command}")
-=======
-#!/usr/bin/perl
-
-print("give me a bottle of rum!");
->>>>>>> frontend
