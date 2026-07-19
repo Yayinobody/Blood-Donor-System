@@ -6,20 +6,34 @@ import {
   User,
   Sparkles,
   Shield,
-  Droplets,
-  Heart,
   Loader2,
+  AlertCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import axios from "axios";
 
 interface Message {
   id: string;
   role: "user" | "assistant";
   content: string;
   timestamp: Date;
+  sources?: Array<{
+    source: string;
+    file_name: string;
+    score: number;
+  }>;
+}
+
+interface ChatResponse {
+  answer: string;
+  sources: Array<{
+    source: string;
+    file_name: string;
+    score: number;
+  }>;
 }
 
 const suggestions = [
@@ -29,6 +43,9 @@ const suggestions = [
   "Is blood donation safe?",
   "What are the benefits of O- blood?",
 ];
+
+// API Base URL - adjust based on your environment
+const API_BASE_URL = "http://localhost:8000";
 
 export default function AIAssistant() {
   const [messages, setMessages] = useState<Message[]>([
@@ -42,6 +59,7 @@ export default function AIAssistant() {
   ]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -57,6 +75,9 @@ export default function AIAssistant() {
     const messageText = text || input.trim();
     if (!messageText || isLoading) return;
 
+    // Clear any previous errors
+    setError(null);
+
     const userMessage: Message = {
       id: Date.now().toString(),
       role: "user",
@@ -68,24 +89,58 @@ export default function AIAssistant() {
     setInput("");
     setIsLoading(true);
 
-    // Simulate AI response
-    setTimeout(() => {
-      const responses: Record<string, string> = {
-        default:
-          "Based on medical guidelines, most people aged 17-65, weighing over 50kg, and in good health can donate blood. However, specific conditions like recent tattoos, travel history, or certain medications may affect eligibility. Please consult the detailed guidelines or ask me more specific questions.",
-      };
+    try {
+      const response = await axios.post<ChatResponse>(
+        `${API_BASE_URL}/api/chat`,
+        { question: messageText },
+        {
+          headers: {
+            "Content-Type": "application/json",
+          },
+          timeout: 30000, // 30 second timeout
+        }
+      );
 
       const aiMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: "assistant",
-        content:
-          responses[messageText.toLowerCase()] || responses.default,
+        content: response.data.answer,
         timestamp: new Date(),
+        sources: response.data.sources,
       };
 
       setMessages((prev) => [...prev, aiMessage]);
+
+      // If there are sources, log them (you could display them in the UI)
+      if (response.data.sources && response.data.sources.length > 0) {
+        console.log("Sources:", response.data.sources);
+      }
+    } catch (err) {
+      console.error("Error calling AI:", err);
+      let errorMessage = "I'm sorry, I encountered an error. Please try again later.";
+
+      if (axios.isAxiosError(err)) {
+        if (err.code === "ECONNABORTED") {
+          errorMessage = "The request timed out. Please try again.";
+        } else if (err.response) {
+          errorMessage = err.response.data?.detail || errorMessage;
+        } else if (err.request) {
+          errorMessage = "Cannot connect to the AI service. Please make sure the backend is running.";
+        }
+      }
+
+      setError(errorMessage);
+
+      const errorAiMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        role: "assistant",
+        content: errorMessage,
+        timestamp: new Date(),
+      };
+      setMessages((prev) => [...prev, errorAiMessage]);
+    } finally {
       setIsLoading(false);
-    }, 1500);
+    }
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -148,7 +203,22 @@ export default function AIAssistant() {
                     : "bg-gray-100 text-dark rounded-bl-md"
                 )}
               >
-                <p>{msg.content}</p>
+                <p className="whitespace-pre-wrap">{msg.content}</p>
+                {msg.sources && msg.sources.length > 0 && (
+                  <div className="mt-2 pt-2 border-t border-gray-200">
+                    <p className="text-xs text-gray-500">Sources:</p>
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {msg.sources.map((source, idx) => (
+                        <span
+                          key={idx}
+                          className="text-xs bg-gray-200 px-2 py-0.5 rounded-full"
+                        >
+                          {source.source}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 <span className="text-[10px] opacity-70 block mt-1">
                   {msg.timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                 </span>
@@ -168,6 +238,12 @@ export default function AIAssistant() {
               <div className="bg-gray-100 rounded-2xl rounded-bl-md px-4 py-3">
                 <Loader2 className="h-4 w-4 animate-spin text-primary" />
               </div>
+            </div>
+          )}
+          {error && (
+            <div className="flex items-center gap-2 text-red-500 text-sm p-3 bg-red-50 rounded-lg">
+              <AlertCircle className="h-4 w-4" />
+              <span>{error}</span>
             </div>
           )}
           <div ref={messagesEndRef} />
