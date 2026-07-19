@@ -79,11 +79,11 @@ export default function Footer() {
             <ul className="mt-4 space-y-3">
               <li className="flex items-start space-x-2 text-sm text-gray-400">
                 <MapPin className="mt-0.5 h-4 w-4 flex-shrink-0 text-primary" />
-                <span>123 Health Street, Medical District</span>
+                <span>Negros Polymedic Hospital</span>
               </li>
               <li className="flex items-center space-x-2 text-sm text-gray-400">
                 <Phone className="h-4 w-4 flex-shrink-0 text-primary" />
-                <span>+1 (555) 123-4567</span>
+                <span>(+63) 69 420 6767</span>
               </li>
               <li className="flex items-center space-x-2 text-sm text-gray-400">
                 <Mail className="h-4 w-4 flex-shrink-0 text-primary" />
