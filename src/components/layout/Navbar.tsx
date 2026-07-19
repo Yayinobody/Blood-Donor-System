@@ -9,7 +9,7 @@ const navLinks = [
   { name: "Home", path: "/" },
   { name: "About", path: "/#about" },
   { name: "Features", path: "/#features" },
-  { name: "How It Works", path: "/#how-it-works" },
+  { name: "How It Works", path: "/#workflow" },
   { name: "Contact", path: "/#contact" },
 ];
 
@@ -17,6 +17,18 @@ export default function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const location = useLocation();
   const isHome = location.pathname === "/";
+
+  const handleNavClick = (e: React.MouseEvent<HTMLAnchorElement>, path: string) => {
+    if (path.startsWith("/#")) {
+      e.preventDefault();
+      const id = path.replace("/#", "");
+      const el = document.getElementById(id);
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth" });
+        setMobileMenuOpen(false);
+      }
+    }
+  };
 
   return (
     <nav
@@ -41,7 +53,8 @@ export default function Navbar() {
               <a
                 key={link.path}
                 href={link.path}
-                className="text-sm font-medium text-dark/70 transition-colors hover:text-primary"
+                onClick={(e) => handleNavClick(e, link.path)}
+                className="text-sm font-medium text-dark/70 transition-colors hover:text-primary cursor-pointer"
               >
                 {link.name}
               </a>
@@ -83,8 +96,8 @@ export default function Navbar() {
                 <a
                   key={link.path}
                   href={link.path}
+                  onClick={(e) => handleNavClick(e, link.path)}
                   className="block rounded-md px-3 py-2 text-base font-medium text-dark hover:bg-primary/10"
-                  onClick={() => setMobileMenuOpen(false)}
                 >
                   {link.name}
                 </a>
