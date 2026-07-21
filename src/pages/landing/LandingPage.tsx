@@ -1,105 +1,128 @@
-import { useEffect, useRef, useState } from "react";
-import { useLocation } from "react-router-dom";
+import { useState, useEffect, useRef } from "react";
+import { Link } from "react-router-dom";
 import {
   motion,
   useAnimation,
   useInView,
-  useScroll,
-  useTransform,
-  useMotionValue,
-  useSpring,
+  AnimatePresence,
 } from "framer-motion";
 import {
-  ArrowRight,
+  MapPin,
+  List,
+  Map as MapIcon,
   Droplets,
+  Search,
+  SlidersHorizontal,
+  X,
+  MessageCircle,
+  Send,
   Shield,
-  Brain,
-  MessageSquare,
-  Activity,
-  Users,
-  Heart,
-  Star,
+  Sparkles,
   Zap,
   Lock,
-  ChevronRight,
-  Check,
-  Building2,
+  ArrowRight,
+  Loader2,
+  Navigation,
+  Clock,
+  BadgeCheck,
+  Users,
+  Brain,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Link } from "react-router-dom";
+import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import toast from "react-hot-toast";
+import type {
+  AnonymizedDonor,
+  BloodType,
+  AssistantMessage,
+} from "@/types";
+import {
+  BLOOD_TYPES,
+  COMPATIBLE_DONORS,
+} from "@/types";
+
+// --------------------- Mock Data ---------------------
+const MOCK_DONORS: AnonymizedDonor[] = [
+  {
+    display_id: "Donor #482",
+    blood_type: "O-",
+    distance_km: 1.2,
+    availability_status: "available",
+    verification_badge: true,
+    fuzzed_lat: 14.5995,
+    fuzzed_lng: 120.9842,
+    last_active: "2026-07-19T10:30:00Z",
+  },
+  {
+    display_id: "Donor #291",
+    blood_type: "O+",
+    distance_km: 2.5,
+    availability_status: "available",
+    verification_badge: false,
+    fuzzed_lat: 14.6012,
+    fuzzed_lng: 120.9820,
+    last_active: "2026-07-19T09:15:00Z",
+  },
+  {
+    display_id: "Donor #105",
+    blood_type: "A+",
+    distance_km: 3.1,
+    availability_status: "available",
+    verification_badge: true,
+    fuzzed_lat: 14.5970,
+    fuzzed_lng: 120.9875,
+    last_active: "2026-07-18T14:00:00Z",
+  },
+  {
+    display_id: "Donor #763",
+    blood_type: "B+",
+    distance_km: 4.0,
+    availability_status: "resting",
+    verification_badge: false,
+    fuzzed_lat: 14.6030,
+    fuzzed_lng: 120.9790,
+    last_active: "2026-07-17T08:45:00Z",
+  },
+  {
+    display_id: "Donor #518",
+    blood_type: "O-",
+    distance_km: 5.2,
+    availability_status: "available",
+    verification_badge: true,
+    fuzzed_lat: 14.5955,
+    fuzzed_lng: 120.9900,
+    last_active: "2026-07-19T11:00:00Z",
+  },
+  {
+    display_id: "Donor #340",
+    blood_type: "AB+",
+    distance_km: 6.8,
+    availability_status: "available",
+    verification_badge: false,
+    fuzzed_lat: 14.6060,
+    fuzzed_lng: 120.9760,
+    last_active: "2026-07-19T07:30:00Z",
+  },
+];
 
 // --------------------- Animation Variants ---------------------
 const fadeInUp = {
   hidden: { opacity: 0, y: 40 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.6 } },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.6, ease: [0.4, 0, 0.2, 1] as const },
+  },
 };
 
 const staggerContainer = {
   hidden: { opacity: 0 },
-  visible: {
-    opacity: 1,
-    transition: { staggerChildren: 0.15, delayChildren: 0.2 },
-  },
+  visible: { opacity: 1, transition: { staggerChildren: 0.15 } },
 };
 
-// --------------------- Floating Blood Drops ---------------------
-function FloatingParticles() {
-  return (
-    <div className="absolute inset-0 overflow-hidden pointer-events-none">
-      {Array.from({ length: 12 }).map((_, i) => (
-        <motion.div
-          key={i}
-          className="absolute text-primary/20"
-          style={{
-            left: `${Math.random() * 100}%`,
-            top: `${Math.random() * 100}%`,
-            fontSize: `${Math.random() * 24 + 12}px`,
-          }}
-          animate={{
-            y: [0, -30, 0],
-            opacity: [0.2, 0.6, 0.2],
-          }}
-          transition={{
-            duration: 3 + Math.random() * 3,
-            repeat: Infinity,
-            delay: Math.random() * 2,
-          }}
-        >
-          <Droplets />
-        </motion.div>
-      ))}
-    </div>
-  );
-}
-
-// --------------------- Animated Counter ---------------------
-function AnimatedCounter({ end, duration = 2 }: { end: number; duration?: number }) {
-  const [count, setCount] = useState(0);
-  const ref = useRef(null);
-  const isInView = useInView(ref, { once: true });
-
-  useEffect(() => {
-    if (!isInView) return;
-    let start = 0;
-    const increment = end / (duration * 60);
-    const timer = setInterval(() => {
-      start += increment;
-      if (start >= end) {
-        setCount(end);
-        clearInterval(timer);
-      } else {
-        setCount(Math.floor(start));
-      }
-    }, 1000 / 60);
-    return () => clearInterval(timer);
-  }, [isInView, end, duration]);
-
-  return <span ref={ref}>{count.toLocaleString()}+</span>;
-}
-
-// --------------------- Section Wrapper with Scroll Trigger ---------------------
+// --------------------- Section Wrapper ---------------------
 function SectionWrapper({
   id,
   children,
@@ -124,262 +147,658 @@ function SectionWrapper({
       variants={staggerContainer}
       initial="hidden"
       animate={controls}
-      className={cn("py-20 md:py-28 relative", className)}
+      className={cn("py-20 md:py-28", className)}
     >
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">{children}</div>
     </motion.section>
   );
 }
 
-// --------------------- 3D Tilt Card ---------------------
-function TiltCard({
-  children,
-  className,
-}: {
-  children: React.ReactNode;
-  className?: string;
-}) {
-  const x = useMotionValue(0);
-  const y = useMotionValue(0);
-  const rotateX = useSpring(useTransform(y, [-0.5, 0.5], [5, -5]), {
-    stiffness: 300,
-    damping: 30,
-  });
-  const rotateY = useSpring(useTransform(x, [-0.5, 0.5], [-5, 5]), {
-    stiffness: 300,
-    damping: 30,
-  });
-
-  const handleMouse = (event: React.MouseEvent<HTMLDivElement>) => {
-    const rect = event.currentTarget.getBoundingClientRect();
-    const width = rect.width;
-    const height = rect.height;
-    const mouseX = event.clientX - rect.left;
-    const mouseY = event.clientY - rect.top;
-    const xPct = mouseX / width - 0.5;
-    const yPct = mouseY / height - 0.5;
-    x.set(xPct);
-    y.set(yPct);
-  };
-
-  const handleMouseLeave = () => {
-    x.set(0);
-    y.set(0);
-  };
-
-  return (
-    <motion.div
-      onMouseMove={handleMouse}
-      onMouseLeave={handleMouseLeave}
-      style={{ rotateX, rotateY, transformStyle: "preserve-3d" }}
-      className={cn("cursor-pointer", className)}
-    >
-      <motion.div style={{ transform: "translateZ(20px)" }}>{children}</motion.div>
-    </motion.div>
-  );
-}
-
-// --------------------- Main Component ---------------------
+// --------------------- Main Landing Page ---------------------
 export default function LandingPage() {
-  const location = useLocation();
+  const [viewMode, setViewMode] = useState<"map" | "list">("map");
+  const [selectedBloodType, setSelectedBloodType] = useState<BloodType | "">("");
+  const [radiusKm, setRadiusKm] = useState(10);
+  const [showFilters, setShowFilters] = useState(false);
+  const [chatOpen, setChatOpen] = useState(false);
+  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [locationError, setLocationError] = useState(false);
 
+  // Get user location on mount
   useEffect(() => {
-    if (location.hash) {
-      const id = location.hash.replace("#", "");
-      setTimeout(() => {
-        document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
-      }, 100);
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          setUserLocation({
+            lat: pos.coords.latitude,
+            lng: pos.coords.longitude,
+          });
+        },
+        () => setLocationError(true),
+        { enableHighAccuracy: false, timeout: 5000 }
+      );
+    } else {
+      setLocationError(true);
     }
-  }, [location.hash]);
+  }, []);
+
+  // Filter donors by blood type compatibility
+  const compatibleTypes = selectedBloodType
+    ? COMPATIBLE_DONORS[selectedBloodType]
+    : BLOOD_TYPES;
+
+  const filteredDonors = MOCK_DONORS.filter(
+    (d) =>
+      compatibleTypes.includes(d.blood_type) &&
+      d.distance_km <= radiusKm &&
+      d.availability_status !== "unavailable"
+  );
+
+  // Sort by distance
+  const sortedDonors = [...filteredDonors].sort((a, b) => a.distance_km - b.distance_km);
 
   return (
     <div className="overflow-hidden">
-      <HeroSection />
-      <AboutSection />
+      {/* Hero + Map Section */}
+      <HeroSearchSection
+        viewMode={viewMode}
+        setViewMode={setViewMode}
+        selectedBloodType={selectedBloodType}
+        setSelectedBloodType={setSelectedBloodType}
+        radiusKm={radiusKm}
+        setRadiusKm={setRadiusKm}
+        showFilters={showFilters}
+        setShowFilters={setShowFilters}
+        donors={sortedDonors}
+        userLocation={userLocation}
+        locationError={locationError}
+      />
+
+      {/* Problem Section */}
       <ProblemSection />
+
+      {/* Features Section */}
       <FeaturesSection />
-      <PrivacySection />
-      <AIMatchingSection />
-      <RAGSection />
+
+      {/* How It Works */}
       <WorkflowSection />
-      <ArchitectureSection />
-      <BenefitsSection />
+
+      {/* Comparison */}
       <ComparisonSection />
-      <TeamSection />
+
+      {/* FAQ */}
       <FAQSection />
-      <ContactSection />
+
+      {/* CTA */}
       <CTASection />
+
+      {/* AI Chat Widget */}
+      <AIChatWidget chatOpen={chatOpen} setChatOpen={setChatOpen} />
+
+      {/* Footer is in MainLayout */}
     </div>
   );
 }
 
-// --------------------- Hero Section ---------------------
-function HeroSection() {
-  const { scrollY } = useScroll();
-  const y1 = useTransform(scrollY, [0, 500], [0, 150]);
-  const y2 = useTransform(scrollY, [0, 500], [0, -100]);
-
+// --------------------- Hero + Map/List Search Section ---------------------
+function HeroSearchSection({
+  viewMode,
+  setViewMode,
+  selectedBloodType,
+  setSelectedBloodType,
+  radiusKm,
+  setRadiusKm,
+  showFilters,
+  setShowFilters,
+  donors,
+  userLocation,
+  locationError,
+}: {
+  viewMode: "map" | "list";
+  setViewMode: (m: "map" | "list") => void;
+  selectedBloodType: BloodType | "";
+  setSelectedBloodType: (b: BloodType | "") => void;
+  radiusKm: number;
+  setRadiusKm: (r: number) => void;
+  showFilters: boolean;
+  setShowFilters: (s: boolean) => void;
+  donors: AnonymizedDonor[];
+  userLocation: { lat: number; lng: number } | null;
+  locationError: boolean;
+}) {
   return (
-    <section className="relative min-h-screen flex items-center overflow-hidden bg-gradient-to-br from-primary/5 via-white to-accent/20">
-      <FloatingParticles />
-      <motion.div
-        style={{ y: y1 }}
-        className="absolute top-1/3 right-0 h-96 w-96 rounded-full bg-primary/10 blur-3xl"
-      />
-      <motion.div
-        style={{ y: y2 }}
-        className="absolute bottom-1/4 left-0 h-64 w-64 rounded-full bg-accent/20 blur-3xl"
-      />
-
-      <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-32">
+    <section className="relative min-h-screen bg-gradient-to-br from-primary/5 via-white to-accent/10">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pt-24 pb-12">
+        {/* Hero text */}
         <motion.div
-          initial={{ opacity: 0, y: 50 }}
+          initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8 }}
-          className="text-center max-w-4xl mx-auto"
+          transition={{ duration: 0.6 }}
+          className="text-center max-w-3xl mx-auto mb-10"
         >
           <motion.div
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
-            transition={{ delay: 0.3, type: "spring", stiffness: 200 }}
-            className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-4 py-1.5 text-sm font-medium text-primary mb-6"
+            transition={{ delay: 0.2, type: "spring" }}
+            className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-4 py-1.5 text-sm font-medium text-primary mb-4"
           >
-            <Zap className="h-4 w-4" />
-            AI-Powered & Privacy-First
+            <Zap className="h-4 w-4" /> Find Blood Donors Near You
           </motion.div>
-
-          <h1 className="text-4xl font-extrabold tracking-tight text-dark sm:text-5xl lg:text-6xl">
-            Save Lives with{" "}
-            <span className="bg-gradient-to-r from-primary to-red-700 bg-clip-text text-transparent animate-pulse">
-              Anonymous
-            </span>{" "}
-            Blood Donation
+          <h1 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight text-dark">
+            Urgent Blood Needed?{" "}
+            <span className="bg-gradient-to-r from-primary to-red-700 bg-clip-text text-transparent">
+              Find a Donor Now
+            </span>
           </h1>
-
-          <p className="mt-6 text-lg text-gray-600 md:text-xl max-w-2xl mx-auto">
-            AnonBlood connects donors and hospitals through privacy-preserving AI, 
-            ensuring secure, efficient, and intelligent blood matching without 
-            compromising personal identity.
+          <p className="mt-4 text-lg text-gray-600">
+            Browse nearby blood donors anonymously. No account needed to search.
+            Donors stay private until both sides are verified.
           </p>
+        </motion.div>
 
-          <div className="mt-10 flex flex-col sm:flex-row gap-4 justify-center">
-            <Link to="/register">
-              <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-                <Button size="lg" className="bg-primary hover:bg-primary-600 text-lg px-8 py-6 shadow-lg shadow-primary/25">
-                  Become a Donor
-                  <ArrowRight className="ml-2 h-5 w-5" />
-                </Button>
-              </motion.div>
-            </Link>
-            <Link to="/login">
-              <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-                <Button size="lg" variant="outline" className="text-lg px-8 py-6">
-                  Hospital Login
-                </Button>
-              </motion.div>
-            </Link>
+        {/* Search / Filter Bar */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.4 }}
+          className="max-w-2xl mx-auto mb-8"
+        >
+          <div className="flex items-center gap-2 bg-white rounded-xl shadow-lg border border-gray-200 p-2">
+            <Search className="h-5 w-5 text-gray-400 ml-2 flex-shrink-0" />
+            <select
+              value={selectedBloodType}
+              onChange={(e) => setSelectedBloodType(e.target.value as BloodType | "")}
+              className="flex-1 bg-transparent border-0 text-sm focus:ring-0 py-2"
+            >
+              <option value="">Any blood type</option>
+              {BLOOD_TYPES.map((bt) => (
+                <option key={bt} value={bt}>
+                  {bt}
+                </option>
+              ))}
+            </select>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setShowFilters(!showFilters)}
+              className={showFilters ? "bg-primary/10 text-primary" : ""}
+            >
+              <SlidersHorizontal className="h-5 w-5" />
+            </Button>
+            <div className="flex bg-gray-100 rounded-lg p-0.5">
+              <button
+                onClick={() => setViewMode("map")}
+                className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                  viewMode === "map" ? "bg-white shadow text-dark" : "text-gray-500"
+                }`}
+              >
+                <MapIcon className="h-4 w-4 inline mr-1" /> Map
+              </button>
+              <button
+                onClick={() => setViewMode("list")}
+                className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                  viewMode === "list" ? "bg-white shadow text-dark" : "text-gray-500"
+                }`}
+              >
+                <List className="h-4 w-4 inline mr-1" /> List
+              </button>
+            </div>
           </div>
 
+          {/* Filters */}
+          <AnimatePresence>
+            {showFilters && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+                className="bg-white rounded-xl shadow-lg border border-gray-200 p-4 mt-2 overflow-hidden"
+              >
+                <div className="flex items-center gap-4">
+                  <label className="text-sm font-medium text-gray-700">Distance:</label>
+                  <input
+                    type="range"
+                    min={1}
+                    max={50}
+                    value={radiusKm}
+                    onChange={(e) => setRadiusKm(Number(e.target.value))}
+                    className="flex-1 accent-primary"
+                  />
+                  <span className="text-sm font-semibold text-primary w-16 text-right">
+                    {radiusKm} km
+                  </span>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </motion.div>
+
+        {/* Location status */}
+        {locationError && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            transition={{ delay: 1 }}
-            className="mt-12 flex justify-center gap-8 text-sm text-gray-500"
+            className="text-center mb-4"
           >
-            <div className="flex items-center gap-1">
-              <Shield className="h-4 w-4 text-primary" />
-              HIPAA Compliant
-            </div>
-            <div className="flex items-center gap-1">
-              <Lock className="h-4 w-4 text-primary" />
-              End-to-End Encrypted
-            </div>
-            <div className="flex items-center gap-1">
-              <Users className="h-4 w-4 text-primary" />
-              <AnimatedCounter end={10000} /> Donors
-            </div>
+            <p className="text-sm text-gray-500">
+              <Navigation className="h-4 w-4 inline mr-1" />
+              Showing donors near Manila.{" "}
+              <button className="text-primary underline" onClick={() => toast.success("Location access granted (demo)")}>
+                Enable location
+              </button>
+            </p>
           </motion.div>
-        </motion.div>
+        )}
+
+        {/* Results count */}
+        <motion.p
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="text-center text-sm text-gray-500 mb-6"
+        >
+          {donors.length} donor{donors.length !== 1 ? "s" : ""} found
+          {selectedBloodType && ` compatible with ${selectedBloodType}`}
+        </motion.p>
+
+        {/* View: Map or List */}
+        <AnimatePresence mode="wait">
+          {viewMode === "map" ? (
+            <MapView key="map" donors={donors} userLocation={userLocation} />
+          ) : (
+            <ListView key="list" donors={donors} />
+          )}
+        </AnimatePresence>
       </div>
     </section>
   );
 }
 
-// --------------------- About Section (NEW) ---------------------
-function AboutSection() {
-  return (
-    <SectionWrapper id="about" className="bg-white">
-      <motion.div variants={fadeInUp} className="text-center max-w-3xl mx-auto">
-        <div className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-sm font-medium text-primary mb-4">
-          <Droplets className="h-4 w-4" /> About the Platform
-        </div>
-        <h2 className="text-3xl font-bold text-dark sm:text-4xl">
-          AnonBlood: Privacy-Preserving Blood Donation
-        </h2>
-        <p className="mt-4 text-lg text-gray-600">
-          AnonBlood is a capstone project that combines artificial intelligence,
-          strong cryptography, and user-centric design to create a safe, efficient,
-          and anonymous blood donation ecosystem. We bridge the gap between
-          hospitals in need and willing donors, all while protecting your identity.
-        </p>
-      </motion.div>
+// --------------------- Map View (Simplified SVG Map) ---------------------
+function MapView({
+  donors,
+  userLocation,
+}: {
+  donors: AnonymizedDonor[];
+  userLocation: { lat: number; lng: number } | null;
+}) {
+  // Simple SVG map representation of Manila area
+  const centerLat = userLocation?.lat || 14.5995;
+  const centerLng = userLocation?.lng || 120.9842;
 
-      <div className="mt-12 grid grid-cols-1 md:grid-cols-2 gap-8">
-        <motion.div variants={fadeInUp} whileHover={{ scale: 1.02 }} className="rounded-2xl border bg-white p-6 shadow-sm">
-          <h3 className="text-xl font-semibold text-dark flex items-center gap-2">
-            <Star className="h-5 w-5 text-primary" /> Our Mission
-          </h3>
-          <p className="mt-2 text-gray-600">
-            To save lives by making blood donation accessible, secure, and completely
-            anonymous for donors while providing hospitals with real-time, intelligent
-            matching capabilities.
-          </p>
-        </motion.div>
-        <motion.div variants={fadeInUp} whileHover={{ scale: 1.02 }} className="rounded-2xl border bg-white p-6 shadow-sm">
-          <h3 className="text-xl font-semibold text-dark flex items-center gap-2">
-            <Heart className="h-5 w-5 text-primary" /> Our Vision
-          </h3>
-          <p className="mt-2 text-gray-600">
-            A world where no one dies due to lack of blood, and every donor can
-            contribute without fear of privacy invasion or data misuse.
-          </p>
-        </motion.div>
+  const toSVGCoords = (lat: number, lng: number) => {
+    const x = ((lng - 120.97) / 0.03) * 600 + 50;
+    const y = ((14.61 - lat) / 0.02) * 400 + 30;
+    return { x, y };
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, scale: 0.95 }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 0, scale: 0.95 }}
+      className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden"
+    >
+      <div className="relative" style={{ height: "450px" }}>
+        <svg viewBox="0 0 700 460" className="w-full h-full">
+          {/* Background */}
+          <rect width="700" height="460" fill="#f0f4f8" rx="16" />
+
+          {/* Grid lines */}
+          {Array.from({ length: 8 }).map((_, i) => (
+            <line
+              key={`h${i}`}
+              x1="0"
+              y1={i * 57.5}
+              x2="700"
+              y2={i * 57.5}
+              stroke="#e5e7eb"
+              strokeWidth="0.5"
+            />
+          ))}
+
+          {/* Simple roads */}
+          <line x1="100" y1="230" x2="600" y2="230" stroke="#d1d5db" strokeWidth="2" />
+          <line x1="350" y1="30" x2="350" y2="430" stroke="#d1d5db" strokeWidth="2" />
+
+          {/* Manila label */}
+          <text x="350" y="50" textAnchor="middle" className="text-xs" fill="#9ca3af" fontWeight="600">
+            MANILA
+          </text>
+
+          {/* User location */}
+          {userLocation && (
+            <>
+              <circle
+                cx={toSVGCoords(centerLat, centerLng).x}
+                cy={toSVGCoords(centerLat, centerLng).y}
+                r="8"
+                fill="#3B82F6"
+                stroke="white"
+                strokeWidth="2"
+              />
+              <circle
+                cx={toSVGCoords(centerLat, centerLng).x}
+                cy={toSVGCoords(centerLat, centerLng).y}
+                r="16"
+                fill="none"
+                stroke="#3B82F6"
+                strokeWidth="1"
+                opacity="0.4"
+              />
+            </>
+          )}
+
+          {/* Donor pins */}
+          {donors.map((donor) => {
+            const { x, y } = toSVGCoords(donor.fuzzed_lat, donor.fuzzed_lng);
+            const isAvailable = donor.availability_status === "available";
+            return (
+              <g key={donor.display_id} className="cursor-pointer">
+                <circle cx={x} cy={y} r="12" fill={isAvailable ? "#E63946" : "#9CA3AF"} opacity="0.2" />
+                <circle cx={x} cy={y} r="6" fill={isAvailable ? "#E63946" : "#9CA3AF"} stroke="white" strokeWidth="2" />
+                {donor.verification_badge && (
+                  <text x={x + 8} y={y - 8} fontSize="10" fill="#22C55E">
+                    ✓
+                  </text>
+                )}
+              </g>
+            );
+          })}
+        </svg>
+
+        {/* Legend */}
+        <div className="absolute bottom-4 left-4 bg-white/90 backdrop-blur rounded-lg p-3 shadow text-xs space-y-1">
+          <div className="flex items-center gap-2">
+            <span className="w-3 h-3 rounded-full bg-primary inline-block" /> Available
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="w-3 h-3 rounded-full bg-gray-400 inline-block" /> Resting
+          </div>
+          <div className="flex items-center gap-2">
+            <BadgeCheck className="h-3 w-3 text-success" /> Verified
+          </div>
+        </div>
       </div>
-    </SectionWrapper>
+    </motion.div>
+  );
+}
+
+// --------------------- List View ---------------------
+function ListView({ donors }: { donors: AnonymizedDonor[] }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -20 }}
+      className="space-y-3"
+    >
+      {donors.length === 0 ? (
+        <div className="text-center py-12 text-gray-500">
+          <Droplets className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+          <p>No donors match your criteria.</p>
+          <p className="text-sm">Try adjusting your filters.</p>
+        </div>
+      ) : (
+        donors.map((donor) => (
+          <DonorCard key={donor.display_id} donor={donor} />
+        ))
+      )}
+    </motion.div>
+  );
+}
+
+// --------------------- Donor Card ---------------------
+function DonorCard({ donor }: { donor: AnonymizedDonor }) {
+  const isAvailable = donor.availability_status === "available";
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      whileHover={{ scale: 1.01 }}
+      className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm hover:shadow-md transition-shadow"
+    >
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div
+            className={cn(
+              "h-10 w-10 rounded-full flex items-center justify-center font-bold text-sm",
+              isAvailable ? "bg-primary/10 text-primary" : "bg-gray-100 text-gray-500"
+            )}
+          >
+            {donor.blood_type}
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="font-semibold text-dark">{donor.display_id}</span>
+              {donor.verification_badge && (
+                <Badge variant="success" className="gap-1 text-xs">
+                  <BadgeCheck className="h-3 w-3" /> Verified
+                </Badge>
+              )}
+            </div>
+            <div className="flex items-center gap-3 text-sm text-gray-500 mt-0.5">
+              <span className="flex items-center gap-1">
+                <MapPin className="h-3 w-3" /> {donor.distance_km.toFixed(1)} km
+              </span>
+              <span className="flex items-center gap-1">
+                <Clock className="h-3 w-3" />{" "}
+                {isAvailable
+                  ? "Available now"
+                  : donor.availability_status === "resting"
+                  ? "Resting"
+                  : "Unavailable"}
+              </span>
+            </div>
+          </div>
+        </div>
+        <Link to={`/seeker/request/${donor.display_id.replace("Donor #", "")}`}>
+          <Button
+            size="sm"
+            disabled={!isAvailable}
+            className={isAvailable ? "bg-primary" : "bg-gray-300"}
+          >
+            Request
+          </Button>
+        </Link>
+      </div>
+    </motion.div>
+  );
+}
+
+// --------------------- AI Chat Widget (Public Mode) ---------------------
+function AIChatWidget({
+  chatOpen,
+  setChatOpen,
+}: {
+  chatOpen: boolean;
+  setChatOpen: (o: boolean) => void;
+}) {
+  const [messages, setMessages] = useState<AssistantMessage[]>([
+    {
+      id: "welcome",
+      role: "assistant",
+      content:
+        "Hi! I'm the AnonBlood assistant. I can help with blood donation questions, compatibility info, and finding donation centers. How can I help?",
+      timestamp: new Date(),
+      scope: "public",
+    },
+  ]);
+  const [input, setInput] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  const handleSend = async () => {
+    if (!input.trim() || isLoading) return;
+    const userMsg: AssistantMessage = {
+      id: Date.now().toString(),
+      role: "user",
+      content: input.trim(),
+      timestamp: new Date(),
+    };
+    setMessages((prev) => [...prev, userMsg]);
+    setInput("");
+    setIsLoading(true);
+
+    // Simulate AI response
+    setTimeout(() => {
+      const lower = userMsg.content.toLowerCase();
+      let response: string;
+      let scope: "public" | "personal" | "out_of_scope" = "public";
+
+      if (lower.includes("nearest") || lower.includes("donation center") || lower.includes("blood bank")) {
+        response = `Based on our database, the nearest blood donation centers are:\n\n1. **Philippine Red Cross - Manila** — Bonifacio Drive, Port Area\n2. **PGH Blood Bank** — Taft Avenue, Ermita\n3. **St. Luke's Medical Center** — Quezon City\n\nWould you like directions to any of these?`;
+      } else if (lower.includes("compatible") || lower.includes("donate to")) {
+        response = `Blood type compatibility:\n\n- **O-** can donate to: all types (universal donor)\n- **O+** can donate to: O+, A+, B+, AB+\n- **A-** can donate to: A-, A+, AB-, AB+\n- **B-** can donate to: B-, B+, AB-, AB+\n- **AB+** can donate to: AB+ only (universal recipient)\n\nWhich type are you asking about?`;
+      } else if (lower.includes("weight") || lower.includes("eligible")) {
+        response = `According to WHO and DOH guidelines, to donate blood you generally need to:\n\n- Be at least 17 years old\n- Weigh at least 50 kg (110 lbs)\n- Be in good health\n- Not have donated whole blood in the last 12 weeks\n\nSpecific conditions may affect eligibility. Would you like more details?`;
+      } else if (lower.includes("personal") || lower.includes("my") || lower.includes("account")) {
+        response = `I can't access personal account information in public mode. Please log in to ask questions about your specific eligibility or donation history.`;
+        scope = "out_of_scope";
+      } else {
+        response = `Good question! For the most accurate information, I recommend checking the WHO blood donation guidelines or speaking with a medical professional. Is there something specific about blood donation I can help clarify?`;
+      }
+
+      const aiMsg: AssistantMessage = {
+        id: (Date.now() + 1).toString(),
+        role: "assistant",
+        content: response,
+        timestamp: new Date(),
+        scope,
+      };
+      setMessages((prev) => [...prev, aiMsg]);
+      setIsLoading(false);
+    }, 1200);
+  };
+
+  return (
+    <>
+      {/* Chat toggle button */}
+      <button
+        onClick={() => setChatOpen(!chatOpen)}
+        className="fixed bottom-6 right-6 z-50 h-14 w-14 rounded-full bg-primary text-white shadow-lg hover:bg-primary-600 transition-colors flex items-center justify-center"
+      >
+        {chatOpen ? <X className="h-6 w-6" /> : <MessageCircle className="h-6 w-6" />}
+      </button>
+
+      {/* Chat panel */}
+      <AnimatePresence>
+        {chatOpen && (
+          <motion.div
+            initial={{ opacity: 0, y: 20, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 20, scale: 0.95 }}
+            className="fixed bottom-24 right-6 z-50 w-96 max-w-[calc(100vw-2rem)] bg-white rounded-2xl shadow-2xl border border-gray-200 overflow-hidden"
+          >
+            {/* Header */}
+            <div className="bg-primary p-4 text-white">
+              <div className="flex items-center gap-2">
+                <Sparkles className="h-5 w-5" />
+                <span className="font-semibold">AnonBlood Assistant</span>
+              </div>
+              <p className="text-xs text-white/70 mt-0.5">
+                <Shield className="h-3 w-3 inline mr-1" /> Public mode — no personal data
+              </p>
+            </div>
+
+            {/* Messages */}
+            <div className="h-80 overflow-y-auto p-4 space-y-3 bg-gray-50">
+              {messages.map((msg) => (
+                <div
+                  key={msg.id}
+                  className={cn(
+                    "flex",
+                    msg.role === "user" ? "justify-end" : "justify-start"
+                  )}
+                >
+                  <div
+                    className={cn(
+                      "max-w-[85%] rounded-2xl px-3 py-2 text-sm",
+                      msg.role === "user"
+                        ? "bg-primary text-white rounded-br-md"
+                        : "bg-white border text-dark rounded-bl-md"
+                    )}
+                  >
+                    <p className="whitespace-pre-wrap">{msg.content}</p>
+                    {msg.scope === "out_of_scope" && (
+                      <p className="text-xs text-gray-400 mt-1 italic">
+                        (Out of scope — login required)
+                      </p>
+                    )}
+                  </div>
+                </div>
+              ))}
+              {isLoading && (
+                <div className="flex justify-start">
+                  <div className="bg-white border rounded-2xl rounded-bl-md px-3 py-2">
+                    <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                  </div>
+                </div>
+              )}
+              <div ref={messagesEndRef} />
+            </div>
+
+            {/* Input */}
+            <div className="border-t p-3 bg-white">
+              <div className="flex gap-2">
+                <Input
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleSend()}
+                  placeholder="Ask about blood donation..."
+                  className="flex-1 text-sm"
+                />
+                <Button
+                  size="icon"
+                  onClick={handleSend}
+                  disabled={!input.trim() || isLoading}
+                  className="bg-primary"
+                >
+                  <Send className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </>
   );
 }
 
 // --------------------- Problem Section ---------------------
 function ProblemSection() {
   return (
-    <SectionWrapper id="problem" className="bg-background">
+    <SectionWrapper id="problem" className="bg-white">
       <motion.div variants={fadeInUp} className="text-center max-w-3xl mx-auto">
         <h2 className="text-3xl font-bold text-dark sm:text-4xl">The Challenge</h2>
         <p className="mt-4 text-lg text-gray-600">
-          Current blood donation systems suffer from identity exposure, manual
-          matching delays, and lack of intelligent donor-hospital coordination.
+          Finding a blood donor in an emergency is hard. Current systems expose personal
+          data, lack verification, and don't respect privacy.
         </p>
       </motion.div>
-
       <div className="mt-12 grid grid-cols-1 md:grid-cols-3 gap-8">
         {[
-          { icon: Shield, title: "Privacy Risks", desc: "Personal data exposed during donor registration and requests" },
-          { icon: Activity, title: "Inefficient Matching", desc: "Manual processes cause delays and mismatches" },
-          { icon: MessageSquare, title: "Poor Communication", desc: "Lack of secure, anonymous channel between donors and hospitals" },
-        ].map((item, i) => {
-          const Icon = item.icon;
-          return (
-            <TiltCard key={i}>
-              <motion.div variants={fadeInUp} className="rounded-2xl border border-gray-200 bg-white p-8 shadow-sm h-full">
-                <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10">
-                  <Icon className="h-6 w-6 text-primary" />
-                </div>
-                <h3 className="mt-4 text-xl font-semibold text-dark">{item.title}</h3>
-                <p className="mt-2 text-gray-600">{item.desc}</p>
-              </motion.div>
-            </TiltCard>
-          );
-        })}
+          { icon: Shield, title: "Privacy at Risk", desc: "Donors and seekers both expose personal contact info to strangers." },
+          { icon: Clock, title: "Slow Matching", desc: "No real-time availability tracking — donors may be unreachable." },
+          { icon: Users, title: "No Verification", desc: "Anyone can claim to be a donor without proof of eligibility." },
+        ].map((item, i) => (
+          <motion.div
+            key={i}
+            variants={fadeInUp}
+            whileHover={{ y: -5 }}
+            className="rounded-2xl border bg-white p-6 shadow-sm"
+          >
+            <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center mb-4">
+              <item.icon className="h-5 w-5 text-primary" />
+            </div>
+            <h3 className="font-semibold text-dark">{item.title}</h3>
+            <p className="text-sm text-gray-600 mt-1">{item.desc}</p>
+          </motion.div>
+        ))}
       </div>
     </SectionWrapper>
   );
@@ -388,178 +807,33 @@ function ProblemSection() {
 // --------------------- Features Section ---------------------
 function FeaturesSection() {
   const features = [
-    { icon: Droplets, title: "Real-time Blood Matching", desc: "AI instantly matches donors to hospital needs based on blood type, location, and availability." },
-    { icon: Shield, title: "Zero-Knowledge Privacy", desc: "Donor identities remain hidden using cryptographic protocols and anonymous IDs." },
-    { icon: Brain, title: "Intelligent RAG Assistant", desc: "Retrieval-Augmented Generation answers medical queries with verified knowledge." },
-    { icon: MessageSquare, title: "Secure Messaging", desc: "End-to-end encrypted communication without exposing phone numbers or emails." },
-    { icon: Activity, title: "Live Donation Tracking", desc: "Hospitals track donation status in real-time through a unified dashboard." },
-    { icon: Lock, title: "Blockchain Audit Trail", desc: "Immutable records for every match and consent, ensuring transparency and trust." },
+    { icon: MapPin, title: "Map-Based Search", desc: "Browse donors near you on an interactive map. No account needed." },
+    { icon: Shield, title: "Mutual Verification", desc: "Both parties verify their identity before contact info is ever exchanged." },
+    { icon: Brain, title: "AI Assistant", desc: "Get instant answers about eligibility, compatibility, and nearby blood banks." },
+    { icon: Lock, title: "Anonymized Profiles", desc: "Donors appear only by pseudonym until both sides pass verification." },
   ];
-
   return (
-    <SectionWrapper id="features" className="bg-white">
+    <SectionWrapper id="features" className="bg-background">
       <motion.div variants={fadeInUp} className="text-center max-w-3xl mx-auto">
-        <h2 className="text-3xl font-bold text-dark sm:text-4xl">Core Features</h2>
-        <p className="mt-4 text-lg text-gray-600">
-          Everything you need for a secure, intelligent, and private blood donation ecosystem.
-        </p>
+        <h2 className="text-3xl font-bold text-dark sm:text-4xl">How AnonBlood Helps</h2>
       </motion.div>
-
-      <div className="mt-12 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-        {features.map((feature, i) => {
-          const Icon = feature.icon;
-          return (
-            <motion.div
-              key={i}
-              variants={fadeInUp}
-              whileHover={{ scale: 1.03, y: -5 }}
-              className="group rounded-2xl bg-white p-6 shadow-sm border border-gray-100 hover:shadow-lg hover:border-primary/30 transition-all relative overflow-hidden"
-            >
-              <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-              <div className="relative">
-                <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10 group-hover:bg-primary/20 transition-colors">
-                  <Icon className="h-6 w-6 text-primary" />
-                </div>
-                <h3 className="mt-4 text-lg font-semibold text-dark">{feature.title}</h3>
-                <p className="mt-2 text-gray-600">{feature.desc}</p>
-              </div>
-            </motion.div>
-          );
-        })}
-      </div>
-    </SectionWrapper>
-  );
-}
-
-// --------------------- Privacy Section ---------------------
-function PrivacySection() {
-  return (
-    <SectionWrapper id="privacy" className="bg-background">
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-        <motion.div variants={fadeInUp}>
-          <div className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-sm font-medium text-primary">
-            <Lock className="h-4 w-4" /> Privacy by Design
-          </div>
-          <h2 className="mt-4 text-3xl font-bold text-dark sm:text-4xl">
-            Your identity stays anonymous, always
-          </h2>
-          <p className="mt-4 text-lg text-gray-600">
-            AnonBlood uses advanced cryptographic techniques including zero-knowledge
-            proofs and ring signatures to ensure that your personal data is never exposed
-            during the matching process. Only essential medical information is shared.
-          </p>
-          <ul className="mt-6 space-y-3">
-            {["Anonymous donor IDs", "Encrypted communication", "Consent-based data sharing", "HIPAA & GDPR compliant"].map((item, i) => (
-              <li key={i} className="flex items-center gap-2 text-gray-700">
-                <Check className="h-5 w-5 text-success" />
-                {item}
-              </li>
-            ))}
-          </ul>
-        </motion.div>
-        <motion.div variants={fadeInUp} className="flex justify-center">
+      <div className="mt-12 grid grid-cols-1 md:grid-cols-2 gap-6">
+        {features.map((f, i) => (
           <motion.div
-            animate={{ scale: [1, 1.1, 1] }}
-            transition={{ repeat: Infinity, duration: 3 }}
-            className="relative"
-          >
-            <div className="h-80 w-80 rounded-full bg-gradient-to-br from-primary/20 to-accent/40" />
-            <div className="absolute inset-0 flex items-center justify-center">
-              <Shield className="h-32 w-32 text-primary/60" />
-            </div>
-          </motion.div>
-        </motion.div>
-      </div>
-    </SectionWrapper>
-  );
-}
-
-// --------------------- AI Matching Section ---------------------
-function AIMatchingSection() {
-  return (
-    <SectionWrapper id="ai-matching" className="bg-white">
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-        <motion.div variants={fadeInUp} className="order-2 lg:order-1 flex justify-center">
-          <motion.div
-            animate={{ scale: [1, 1.1, 1], rotate: [0, 5, -5, 0] }}
-            transition={{ repeat: Infinity, duration: 4 }}
-            className="relative"
-          >
-            <div className="h-80 w-80 rounded-2xl bg-gradient-to-br from-accent/30 to-primary/20 backdrop-blur" />
-            <Brain className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-24 w-24 text-primary/70" />
-          </motion.div>
-        </motion.div>
-        <motion.div variants={fadeInUp} className="order-1 lg:order-2">
-          <div className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-sm font-medium text-primary">
-            <Brain className="h-4 w-4" /> AI-Powered Matching
-          </div>
-          <h2 className="mt-4 text-3xl font-bold text-dark sm:text-4xl">
-            Intelligent donor-hospital pairing
-          </h2>
-          <p className="mt-4 text-lg text-gray-600">
-            Our AI algorithm considers blood type compatibility, geographic proximity, 
-            urgency level, and donor availability to create optimal matches in seconds,
-            not hours.
-          </p>
-          <div className="mt-6 grid grid-cols-2 gap-4">
-            {["Blood Type Matching", "Location Awareness", "Urgency Triage", "Availability Calendar"].map((item, i) => (
-              <div key={i} className="flex items-center gap-2 text-gray-700">
-                <Check className="h-5 w-5 text-success" />
-                <span className="text-sm">{item}</span>
-              </div>
-            ))}
-          </div>
-        </motion.div>
-      </div>
-    </SectionWrapper>
-  );
-}
-
-// --------------------- RAG Section ---------------------
-function RAGSection() {
-  return (
-    <SectionWrapper id="rag" className="bg-background">
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-        <motion.div variants={fadeInUp}>
-          <div className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-sm font-medium text-primary">
-            <MessageSquare className="h-4 w-4" /> Intelligent Assistant
-          </div>
-          <h2 className="mt-4 text-3xl font-bold text-dark sm:text-4xl">
-            Get instant medical guidance with RAG AI
-          </h2>
-          <p className="mt-4 text-lg text-gray-600">
-            Our Retrieval-Augmented Generation (RAG) system answers your questions
-            about eligibility, blood compatibility, and donation process using trusted
-            medical sources — all without exposing your identity.
-          </p>
-          <Link to="/ai-assistant">
-            <Button className="mt-6" variant="outline">
-              Try AI Assistant <ChevronRight className="ml-2 h-4 w-4" />
-            </Button>
-          </Link>
-        </motion.div>
-        <motion.div variants={fadeInUp} className="flex justify-center">
-          <motion.div
+            key={i}
+            variants={fadeInUp}
             whileHover={{ scale: 1.02 }}
-            className="h-72 w-full max-w-md rounded-2xl border bg-white p-4 shadow-lg"
+            className="flex gap-4 bg-white rounded-xl border p-5 shadow-sm"
           >
-            <div className="flex flex-col space-y-3">
-              <div className="flex justify-start">
-                <div className="rounded-2xl rounded-tl-none bg-primary/10 px-4 py-2 text-sm text-dark">
-                  Am I eligible to donate blood if I have a tattoo?
-                </div>
-              </div>
-              <div className="flex justify-end">
-                <div className="rounded-2xl rounded-tr-none bg-gray-100 px-4 py-2 text-sm text-dark">
-                  In most regions, you can donate blood after 3-12 months of getting a tattoo, as long as it was done at a licensed facility. Check local guidelines.
-                </div>
-              </div>
+            <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+              <f.icon className="h-5 w-5 text-primary" />
             </div>
-            <div className="mt-3 flex items-center gap-2 text-xs text-gray-400">
-              <Lock className="h-3 w-3" /> Identity protected
+            <div>
+              <h3 className="font-semibold text-dark">{f.title}</h3>
+              <p className="text-sm text-gray-600 mt-1">{f.desc}</p>
             </div>
           </motion.div>
-        </motion.div>
+        ))}
       </div>
     </SectionWrapper>
   );
@@ -568,109 +842,26 @@ function RAGSection() {
 // --------------------- Workflow Section ---------------------
 function WorkflowSection() {
   const steps = [
-    { step: "01", title: "Anonymous Registration", desc: "Pseudonymous donors verified via zero-knowledge proof." },
-    { step: "02", title: "AI Matching", desc: "Hospitals request blood; AI matches without revealing donor identity." },
-    { step: "03", title: "Secure Consent", desc: "Donor approves via encrypted channel; location shared temporarily." },
-    { step: "04", title: "Donation & Verification", desc: "Donation completed, verified, and recorded on blockchain." },
+    { step: "01", title: "Search Anonymously", desc: "Seekers browse donors on the map. No login needed. Donors appear as pseudonyms." },
+    { step: "02", title: "Send a Request", desc: "Seeker submits a request with their contact info (hidden from donor for now)." },
+    { step: "03", title: "Donor Responds", desc: "Donor accepts or declines. If accepted, both sides complete light verification." },
+    { step: "04", title: "Mutual Reveal", desc: "Only after verification do both parties see each other's real contact details." },
   ];
-
   return (
     <SectionWrapper id="workflow" className="bg-white">
       <motion.div variants={fadeInUp} className="text-center max-w-3xl mx-auto">
         <h2 className="text-3xl font-bold text-dark sm:text-4xl">How It Works</h2>
-        <p className="mt-4 text-lg text-gray-600">
-          A seamless, privacy-preserving workflow from request to donation.
-        </p>
       </motion.div>
-
-      <div className="mt-12 relative">
-        <div className="hidden lg:block absolute left-1/2 top-0 bottom-0 w-0.5 bg-gray-200 -translate-x-1/2" />
-        <div className="space-y-8 lg:space-y-0">
-          {steps.map((step, i) => (
-            <motion.div
-              key={i}
-              variants={fadeInUp}
-              className={`flex flex-col lg:flex-row gap-8 items-center ${
-                i % 2 === 0 ? "lg:flex-row" : "lg:flex-row-reverse"
-              }`}
-            >
-              <div className={`flex-1 ${i % 2 === 0 ? "lg:text-right" : "lg:text-left"}`}>
-                <motion.div
-                  whileHover={{ scale: 1.1 }}
-                  className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-primary text-white font-bold text-lg shadow-lg"
-                >
-                  {step.step}
-                </motion.div>
-                <h3 className="mt-4 text-xl font-semibold text-dark">{step.title}</h3>
-                <p className="mt-2 text-gray-600">{step.desc}</p>
-              </div>
-              <div className="hidden lg:block w-12" />
-            </motion.div>
-          ))}
-        </div>
-      </div>
-    </SectionWrapper>
-  );
-}
-
-// --------------------- Architecture Section ---------------------
-function ArchitectureSection() {
-  const techs = ["React + Vite", "Node.js API", "PostgreSQL", "Blockchain", "AI Model", "Redis Cache", "Cloud Storage", "WebSocket"];
-  return (
-    <SectionWrapper id="architecture" className="bg-background">
-      <motion.div variants={fadeInUp} className="text-center max-w-3xl mx-auto">
-        <h2 className="text-3xl font-bold text-dark sm:text-4xl">System Architecture</h2>
-        <p className="mt-4 text-lg text-gray-600">
-          Built with modern, scalable technologies ensuring security and performance.
-        </p>
-      </motion.div>
-      <motion.div variants={fadeInUp} className="mt-12 flex justify-center">
-        <div className="w-full max-w-4xl rounded-2xl border bg-white p-8 shadow-sm">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
-            {techs.map((tech, i) => (
-              <motion.div
-                key={i}
-                whileHover={{ scale: 1.05, backgroundColor: "rgba(230,57,70,0.1)" }}
-                className="rounded-lg bg-gray-50 p-4 text-sm font-medium text-dark transition-colors"
-              >
-                {tech}
-              </motion.div>
-            ))}
-          </div>
-        </div>
-      </motion.div>
-    </SectionWrapper>
-  );
-}
-
-// --------------------- Benefits Section ---------------------
-function BenefitsSection() {
-  const benefits = [
-    { icon: Users, title: "For Donors", desc: "Total privacy, AI-driven availability, and direct impact." },
-    { icon: Building2, title: "For Hospitals", desc: "Faster matching, reduced manual work, and real-time tracking." },
-    { icon: Shield, title: "For Society", desc: "Increased donation rates with trust and transparency." },
-  ];
-  return (
-    <SectionWrapper id="benefits" className="bg-white">
-      <motion.div variants={fadeInUp} className="text-center max-w-3xl mx-auto">
-        <h2 className="text-3xl font-bold text-dark sm:text-4xl">Benefits for Everyone</h2>
-      </motion.div>
-      <div className="mt-12 grid grid-cols-1 md:grid-cols-3 gap-8">
-        {benefits.map((b, i) => {
-          const Icon = b.icon;
-          return (
-            <motion.div key={i} variants={fadeInUp} whileHover={{ y: -8 }} className="rounded-2xl bg-white p-8 border text-center shadow-sm">
-            <motion.div
-              animate={{ scale: [1, 1.2, 1] }}
-              transition={{ repeat: Infinity, duration: 2, delay: i * 0.3 }}
-            >
-              <Icon className="mx-auto h-10 w-10 text-primary" />
-            </motion.div>
-            <h3 className="mt-4 text-xl font-semibold">{b.title}</h3>
-            <p className="mt-2 text-gray-600">{b.desc}</p>
+      <div className="mt-12 grid grid-cols-1 md:grid-cols-4 gap-6">
+        {steps.map((s, i) => (
+          <motion.div key={i} variants={fadeInUp} className="text-center">
+            <div className="mx-auto h-12 w-12 rounded-full bg-primary text-white flex items-center justify-center font-bold text-lg shadow-lg">
+              {s.step}
+            </div>
+            <h3 className="mt-4 font-semibold text-dark">{s.title}</h3>
+            <p className="text-sm text-gray-600 mt-2">{s.desc}</p>
           </motion.div>
-          );
-        })}
+        ))}
       </div>
     </SectionWrapper>
   );
@@ -681,69 +872,32 @@ function ComparisonSection() {
   return (
     <SectionWrapper id="comparison" className="bg-background">
       <motion.div variants={fadeInUp} className="text-center max-w-3xl mx-auto">
-        <h2 className="text-3xl font-bold text-dark sm:text-4xl">Why AnonBlood?</h2>
+        <h2 className="text-3xl font-bold text-dark sm:text-4xl">AnonBlood vs. Traditional</h2>
       </motion.div>
-      <motion.div variants={fadeInUp} className="mt-12 overflow-x-auto">
-        <table className="w-full text-left">
+      <div className="mt-12 overflow-x-auto">
+        <table className="w-full text-left text-sm">
           <thead>
             <tr className="border-b">
               <th className="py-3 px-4">Feature</th>
               <th className="py-3 px-4 text-primary font-bold">AnonBlood</th>
-              <th className="py-3 px-4 text-gray-500">Traditional Systems</th>
+              <th className="py-3 px-4 text-gray-500">Traditional</th>
             </tr>
           </thead>
           <tbody>
             {[
-              ["Privacy", "Anonymous IDs", "Personal data exposed"],
-              ["Matching", "AI-powered seconds", "Manual hours/days"],
-              ["Communication", "Encrypted chat", "Phone/email leaks"],
-              ["Transparency", "Blockchain audit", "Opaque records"],
+              ["Search", "No account needed", "Login required"],
+              ["Privacy", "Pseudonyms until verified", "Real names exposed"],
+              ["Verification", "Mutual OTP + ID check", "None or one-sided"],
+              ["Matching", "Map + compatibility filter", "Manual posts/groups"],
             ].map((row, i) => (
-              <motion.tr key={i} variants={fadeInUp} className="border-b hover:bg-gray-50">
+              <tr key={i} className="border-b">
                 <td className="py-3 px-4 font-medium">{row[0]}</td>
                 <td className="py-3 px-4 text-primary">{row[1]}</td>
                 <td className="py-3 px-4 text-gray-500">{row[2]}</td>
-              </motion.tr>
+              </tr>
             ))}
           </tbody>
         </table>
-      </motion.div>
-    </SectionWrapper>
-  );
-}
-
-// --------------------- Team Section ---------------------
-function TeamSection() {
-  const team = [
-    { name: "Dr. Sarah Chen", role: "Project Lead", avatar: "SC" },
-    { name: "Alex Rivera", role: "AI Engineer", avatar: "AR" },
-    { name: "Priya Patel", role: "Privacy Architect", avatar: "PP" },
-    { name: "James Okonkwo", role: "Full-Stack Dev", avatar: "JO" },
-  ];
-  return (
-    <SectionWrapper id="team" className="bg-white">
-      <motion.div variants={fadeInUp} className="text-center max-w-3xl mx-auto">
-        <h2 className="text-3xl font-bold text-dark sm:text-4xl">Meet the Team</h2>
-      </motion.div>
-      <div className="mt-12 grid grid-cols-2 md:grid-cols-4 gap-6">
-        {team.map((member, i) => (
-          <motion.div
-            key={i}
-            variants={fadeInUp}
-            whileHover={{ scale: 1.05, y: -5 }}
-            className="text-center"
-          >
-            <motion.div
-              whileHover={{ rotate: 360 }}
-              transition={{ duration: 0.8 }}
-              className="mx-auto h-20 w-20 rounded-full bg-primary/10 flex items-center justify-center text-primary text-xl font-bold shadow-sm"
-            >
-              {member.avatar}
-            </motion.div>
-            <h3 className="mt-3 font-semibold">{member.name}</h3>
-            <p className="text-sm text-gray-500">{member.role}</p>
-          </motion.div>
-        ))}
       </div>
     </SectionWrapper>
   );
@@ -752,25 +906,20 @@ function TeamSection() {
 // --------------------- FAQ Section ---------------------
 function FAQSection() {
   const faqs = [
-    { q: "Is my identity really anonymous?", a: "Yes, we use zero-knowledge proofs and ring signatures to ensure that no one, not even the hospital, knows your real identity." },
-    { q: "How does AI matching work?", a: "Our model analyzes blood type, location, urgency, and donor history to find the optimal match in real-time." },
-    { q: "Is AnonBlood compliant with healthcare regulations?", a: "Absolutely. We follow HIPAA, GDPR, and local health data protection laws." },
+    { q: "Do I need an account to search for donors?", a: "No. Anyone can browse the map and list of donors without creating an account." },
+    { q: "When does a donor see my contact info?", a: "Only after both you and the donor have completed light verification (email/phone OTP)." },
+    { q: "How is donor location protected?", a: "Donor pins are fuzzed to the nearest barangay/district centroid — never their real address." },
   ];
   return (
-    <SectionWrapper id="faq" className="bg-background">
+    <SectionWrapper id="faq" className="bg-white">
       <motion.div variants={fadeInUp} className="text-center max-w-3xl mx-auto">
-        <h2 className="text-3xl font-bold text-dark sm:text-4xl">Frequently Asked Questions</h2>
+        <h2 className="text-3xl font-bold text-dark sm:text-4xl">FAQ</h2>
       </motion.div>
-      <div className="mt-12 max-w-2xl mx-auto space-y-4">
+      <div className="mt-12 max-w-2xl mx-auto space-y-3">
         {faqs.map((faq, i) => (
-          <motion.div
-            key={i}
-            variants={fadeInUp}
-            whileHover={{ scale: 1.02 }}
-            className="rounded-xl border bg-white p-5 shadow-sm"
-          >
-            <h3 className="font-semibold text-dark">{faq.q}</h3>
-            <p className="mt-2 text-gray-600">{faq.a}</p>
+          <motion.div key={i} variants={fadeInUp} className="bg-white border rounded-xl p-5">
+            <h3 className="font-semibold">{faq.q}</h3>
+            <p className="text-sm text-gray-600 mt-1">{faq.a}</p>
           </motion.div>
         ))}
       </div>
@@ -778,71 +927,25 @@ function FAQSection() {
   );
 }
 
-// --------------------- Contact Section ---------------------
-function ContactSection() {
-  return (
-    <SectionWrapper id="contact" className="bg-white">
-      <motion.div variants={fadeInUp} className="text-center max-w-3xl mx-auto">
-        <h2 className="text-3xl font-bold text-dark sm:text-4xl">Get in Touch</h2>
-        <p className="mt-4 text-lg text-gray-600">
-          Have questions? We'd love to hear from you.
-        </p>
-      </motion.div>
-      <motion.div variants={fadeInUp} className="mt-12 max-w-xl mx-auto">
-        <form className="space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Input placeholder="Name" />
-            <Input type="email" placeholder="Email" />
-          </div>
-          <textarea
-            placeholder="Message"
-            rows={4}
-            className="w-full rounded-lg border border-gray-200 p-3 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary"
-          />
-          <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-            <Button className="w-full">Send Message</Button>
-          </motion.div>
-        </form>
-      </motion.div>
-    </SectionWrapper>
-  );
-}
-
 // --------------------- CTA Section ---------------------
 function CTASection() {
   return (
-    <section className="py-20 bg-gradient-to-r from-primary to-red-700 text-white relative overflow-hidden">
-      <FloatingParticles />
-      <div className="mx-auto max-w-4xl text-center px-4 relative">
-        <motion.h2
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
-          className="text-3xl font-bold sm:text-4xl"
-        >
-          Ready to Save Lives Anonymously?
-        </motion.h2>
-        <motion.p
-          initial={{ opacity: 0 }}
-          whileInView={{ opacity: 1 }}
-          transition={{ delay: 0.2 }}
-          className="mt-4 text-white/80"
-        >
-          Join our community of private donors and hospitals.
-        </motion.p>
-        <motion.div
-          initial={{ opacity: 0, scale: 0.8 }}
-          whileInView={{ opacity: 1, scale: 1 }}
-          whileHover={{ scale: 1.05 }}
-          className="mt-8 flex justify-center gap-4"
-        >
-          <Link to="/register">
-            <Button size="lg" variant="secondary" className="bg-white text-primary hover:bg-gray-100">
-              Sign Up Now
-            </Button>
-          </Link>
-        </motion.div>
-      </div>
+    <section className="py-20 bg-gradient-to-r from-primary to-red-700 text-white text-center">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        className="max-w-3xl mx-auto px-4"
+      >
+        <h2 className="text-3xl font-bold sm:text-4xl">Ready to Become a Donor?</h2>
+        <p className="mt-4 text-white/80">
+          Sign up now to appear on the map and start saving lives anonymously.
+        </p>
+        <Link to="/register">
+          <Button size="lg" variant="secondary" className="mt-6 bg-white text-primary hover:bg-gray-100">
+            Register as Donor <ArrowRight className="ml-2 h-4 w-4" />
+          </Button>
+        </Link>
+      </motion.div>
     </section>
   );
 }

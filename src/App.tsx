@@ -10,14 +10,17 @@ const LoginPage = lazy(() => import("@/pages/auth/LoginPage"));
 const RegisterPage = lazy(() => import("@/pages/auth/RegisterPage"));
 const ForgotPasswordPage = lazy(() => import("@/pages/auth/ForgotPasswordPage"));
 const ResetPasswordPage = lazy(() => import("@/pages/auth/ResetPasswordPage"));
-const DashboardHome = lazy(() => import("@/pages/dashboard/DashboardHome"));
-const DonorProfile = lazy(() => import("@/pages/donor/DonorProfile"));
-const DonorHistory = lazy(() => import("@/pages/donor/DonorHistory"));
-const DonorRequests = lazy(() => import("@/pages/donor/DonorRequests"));
-const HospitalProfile = lazy(() => import("@/pages/hospital/HospitalProfile"));
-const HospitalRequests = lazy(() => import("@/pages/hospital/HospitalRequests"));
-const HospitalInventory = lazy(() => import("@/pages/hospital/HospitalInventory"));
-const AIAssistant = lazy(() => import("@/pages/ai-assistant/AIAssistant"));
+const VerifyEmailPage = lazy(() => import("@/pages/auth/VerifyEmailPage"));
+const DonorDashboard = lazy(() => import("@/pages/donor/Dashboard"));
+const DonorProfile = lazy(() => import("@/pages/donor/Profile"));
+const DonorRequests = lazy(() => import("@/pages/donor/Requests"));
+const DonorHistory = lazy(() => import("@/pages/donor/History"));
+const DonorVerification = lazy(() => import("@/pages/donor/Verification"));
+const ConnectScreen = lazy(() => import("@/pages/shared/ConnectScreen"));
+const AIAssistantPage = lazy(() => import("@/pages/ai-assistant/AIAssistant"));
+const SeekerRequestForm = lazy(() => import("@/pages/seeker/RequestForm"));
+const SeekerConfirmation = lazy(() => import("@/pages/seeker/Confirmation"));
+const SeekerVerify = lazy(() => import("@/pages/seeker/Verify"));
 
 function App() {
   return (
@@ -29,25 +32,28 @@ function App() {
       }
     >
       <Routes>
-        {/* Public routes */}
+        {/* Public routes - MainLayout (Navbar + Footer) */}
         <Route element={<MainLayout />}>
           <Route path="/" element={<LandingPage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
           <Route path="/reset-password" element={<ResetPasswordPage />} />
+          <Route path="/verify-email" element={<VerifyEmailPage />} />
+          <Route path="/seeker/request/:donorId" element={<SeekerRequestForm />} />
+          <Route path="/seeker/confirmation" element={<SeekerConfirmation />} />
+          <Route path="/seeker/verify" element={<SeekerVerify />} />
         </Route>
 
-        {/* Protected dashboard routes */}
+        {/* Protected routes - DashboardLayout (Sidebar + Topbar) */}
         <Route element={<DashboardLayout />}>
-          <Route path="/dashboard" element={<DashboardHome />} />
+          <Route path="/dashboard" element={<DonorDashboard />} />
           <Route path="/donor/profile" element={<DonorProfile />} />
-          <Route path="/donor/history" element={<DonorHistory />} />
           <Route path="/donor/requests" element={<DonorRequests />} />
-          <Route path="/hospital/profile" element={<HospitalProfile />} />
-          <Route path="/hospital/requests" element={<HospitalRequests />} />
-          <Route path="/hospital/inventory" element={<HospitalInventory />} />
-          <Route path="/ai-assistant" element={<AIAssistant />} />
+          <Route path="/donor/history" element={<DonorHistory />} />
+          <Route path="/donor/verification" element={<DonorVerification />} />
+          <Route path="/connect/:matchId" element={<ConnectScreen />} />
+          <Route path="/ai-assistant" element={<AIAssistantPage />} />
         </Route>
       </Routes>
     </Suspense>
