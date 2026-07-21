@@ -6,6 +6,9 @@ import { Toaster } from "react-hot-toast";
 import App from "./App";
 // @ts-ignore
 import "./index.css";
+import "leaflet/dist/leaflet.css";
+import "./lib/leaflet-setup";   // <-- add this line
+
 
 const queryClient = new QueryClient({
   defaultOptions: {

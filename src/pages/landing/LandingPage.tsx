@@ -43,67 +43,222 @@ import {
   COMPATIBLE_DONORS,
 } from "@/types";
 
-// --------------------- Mock Data ---------------------
+// --------------------- Leaflet / OpenStreetMap ---------------------
+import "leaflet/dist/leaflet.css";
+import { MapContainer, TileLayer, Marker, Popup, Circle, useMap } from "react-leaflet";
+import L from "leaflet";
+import markerIcon2x from "leaflet/dist/images/marker-icon-2x.png";
+import markerIcon from "leaflet/dist/images/marker-icon.png";
+import markerShadow from "leaflet/dist/images/marker-shadow.png";
+
+// Fix default Leaflet marker icons breaking under bundlers (Vite/webpack)
+delete (L.Icon.Default.prototype as any)._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: markerIcon2x,
+  iconUrl: markerIcon,
+  shadowUrl: markerShadow,
+});
+
 const MOCK_DONORS: AnonymizedDonor[] = [
   {
-    display_id: "Donor #482",
-    blood_type: "O-",
+    display_id: "Donor #101",
+    blood_type: "O+",
+    distance_km: 0.6,
+    availability_status: "available",
+    verification_badge: true,
+    fuzzed_lat: 9.3078,
+    fuzzed_lng: 123.3050,
+    last_active: "2026-07-21T08:15:00Z",
+  },
+  {
+    display_id: "Donor #102",
+    blood_type: "A+",
+    distance_km: 0.9,
+    availability_status: "available",
+    verification_badge: false,
+    fuzzed_lat: 9.3096,
+    fuzzed_lng: 123.3015,
+    last_active: "2026-07-21T07:42:00Z",
+  },
+  {
+    display_id: "Donor #103",
+    blood_type: "B+",
     distance_km: 1.2,
     availability_status: "available",
     verification_badge: true,
-    fuzzed_lat: 14.5995,
-    fuzzed_lng: 120.9842,
-    last_active: "2026-07-19T10:30:00Z",
+    fuzzed_lat: 9.3124,
+    fuzzed_lng: 123.3027,
+    last_active: "2026-07-20T18:10:00Z",
   },
   {
-    display_id: "Donor #291",
-    blood_type: "O+",
-    distance_km: 2.5,
-    availability_status: "available",
-    verification_badge: false,
-    fuzzed_lat: 14.6012,
-    fuzzed_lng: 120.9820,
-    last_active: "2026-07-19T09:15:00Z",
+    display_id: "Donor #104",
+    blood_type: "O-",
+    distance_km: 1.5,
+    availability_status: "resting",
+    verification_badge: true,
+    fuzzed_lat: 9.3168,
+    fuzzed_lng: 123.3048,
+    last_active: "2026-07-21T09:03:00Z",
   },
   {
     display_id: "Donor #105",
-    blood_type: "A+",
-    distance_km: 3.1,
+    blood_type: "AB+",
+    distance_km: 1.8,
     availability_status: "available",
-    verification_badge: true,
-    fuzzed_lat: 14.5970,
-    fuzzed_lng: 120.9875,
-    last_active: "2026-07-18T14:00:00Z",
+    verification_badge: false,
+    fuzzed_lat: 9.3048,
+    fuzzed_lng: 123.3091,
+    last_active: "2026-07-20T20:15:00Z",
   },
   {
-    display_id: "Donor #763",
+    display_id: "Donor #106",
+    blood_type: "A-",
+    distance_km: 2.0,
+    availability_status: "available",
+    verification_badge: true,
+    fuzzed_lat: 9.3205,
+    fuzzed_lng: 123.3060,
+    last_active: "2026-07-21T06:55:00Z",
+  },
+  {
+    display_id: "Donor #107",
+    blood_type: "O+",
+    distance_km: 2.3,
+    availability_status: "available",
+    verification_badge: true,
+    fuzzed_lat: 9.3241,
+    fuzzed_lng: 123.3042,
+    last_active: "2026-07-20T17:12:00Z",
+  },
+  {
+    display_id: "Donor #108",
+    blood_type: "B-",
+    distance_km: 2.6,
+    availability_status: "available",
+    verification_badge: false,
+    fuzzed_lat: 9.3187,
+    fuzzed_lng: 123.2984,
+    last_active: "2026-07-19T15:30:00Z",
+  },
+  {
+    display_id: "Donor #109",
+    blood_type: "A+",
+    distance_km: 2.9,
+    availability_status: "available",
+    verification_badge: true,
+    fuzzed_lat: 9.3142,
+    fuzzed_lng: 123.2956,
+    last_active: "2026-07-21T08:47:00Z",
+  },
+  {
+    display_id: "Donor #110",
+    blood_type: "O-",
+    distance_km: 3.2,
+    availability_status: "available",
+    verification_badge: false,
+    fuzzed_lat: 9.3027,
+    fuzzed_lng: 123.2987,
+    last_active: "2026-07-20T21:40:00Z",
+  },
+  {
+    display_id: "Donor #111",
+    blood_type: "AB-",
+    distance_km: 3.5,
+    availability_status: "available",
+    verification_badge: true,
+    fuzzed_lat: 9.2998,
+    fuzzed_lng: 123.3019,
+    last_active: "2026-07-19T22:15:00Z",
+  },
+  {
+    display_id: "Donor #112",
     blood_type: "B+",
-    distance_km: 4.0,
+    distance_km: 3.8,
     availability_status: "resting",
     verification_badge: false,
-    fuzzed_lat: 14.6030,
-    fuzzed_lng: 120.9790,
-    last_active: "2026-07-17T08:45:00Z",
+    fuzzed_lat: 9.2962,
+    fuzzed_lng: 123.3058,
+    last_active: "2026-07-21T05:48:00Z",
   },
   {
-    display_id: "Donor #518",
-    blood_type: "O-",
-    distance_km: 5.2,
+    display_id: "Donor #113",
+    blood_type: "O+",
+    distance_km: 4.1,
     availability_status: "available",
     verification_badge: true,
-    fuzzed_lat: 14.5955,
-    fuzzed_lng: 120.9900,
-    last_active: "2026-07-19T11:00:00Z",
+    fuzzed_lat: 9.2941,
+    fuzzed_lng: 123.2995,
+    last_active: "2026-07-20T16:22:00Z",
   },
   {
-    display_id: "Donor #340",
-    blood_type: "AB+",
-    distance_km: 6.8,
+    display_id: "Donor #114",
+    blood_type: "A+",
+    distance_km: 4.5,
     availability_status: "available",
     verification_badge: false,
-    fuzzed_lat: 14.6060,
-    fuzzed_lng: 120.9760,
-    last_active: "2026-07-19T07:30:00Z",
+    fuzzed_lat: 9.3275,
+    fuzzed_lng: 123.3005,
+    last_active: "2026-07-18T13:50:00Z",
+  },
+  {
+    display_id: "Donor #115",
+    blood_type: "O-",
+    distance_km: 4.9,
+    availability_status: "available",
+    verification_badge: true,
+    fuzzed_lat: 9.3298,
+    fuzzed_lng: 123.3078,
+    last_active: "2026-07-21T07:11:00Z",
+  },
+  {
+    display_id: "Donor #116",
+    blood_type: "B+",
+    distance_km: 5.3,
+    availability_status: "available",
+    verification_badge: false,
+    fuzzed_lat: 9.2915,
+    fuzzed_lng: 123.3090,
+    last_active: "2026-07-20T11:30:00Z",
+  },
+  {
+    display_id: "Donor #117",
+    blood_type: "AB+",
+    distance_km: 5.8,
+    availability_status: "available",
+    verification_badge: true,
+    fuzzed_lat: 9.3332,
+    fuzzed_lng: 123.3035,
+    last_active: "2026-07-21T08:30:00Z",
+  },
+  {
+    display_id: "Donor #118",
+    blood_type: "A-",
+    distance_km: 6.2,
+    availability_status: "resting",
+    verification_badge: false,
+    fuzzed_lat: 9.2887,
+    fuzzed_lng: 123.3008,
+    last_active: "2026-07-19T12:45:00Z",
+  },
+  {
+    display_id: "Donor #119",
+    blood_type: "O+",
+    distance_km: 6.8,
+    availability_status: "available",
+    verification_badge: true,
+    fuzzed_lat: 9.3361,
+    fuzzed_lng: 123.3089,
+    last_active: "2026-07-21T09:15:00Z",
+  },
+  {
+    display_id: "Donor #120",
+    blood_type: "B-",
+    distance_km: 7.3,
+    availability_status: "available",
+    verification_badge: false,
+    fuzzed_lat: 9.2865,
+    fuzzed_lng: 123.3041,
+    last_active: "2026-07-20T14:20:00Z",
   },
 ];
 
@@ -382,7 +537,7 @@ function HeroSearchSection({
           >
             <p className="text-sm text-gray-500">
               <Navigation className="h-4 w-4 inline mr-1" />
-              Showing donors near Manila.{" "}
+              Showing donors near Dumaguete.{" "}
               <button className="text-primary underline" onClick={() => toast.success("Location access granted (demo)")}>
                 Enable location
               </button>
@@ -403,7 +558,12 @@ function HeroSearchSection({
         {/* View: Map or List */}
         <AnimatePresence mode="wait">
           {viewMode === "map" ? (
-            <MapView key="map" donors={donors} userLocation={userLocation} />
+            <MapView
+              key="map"
+              donors={donors}
+              userLocation={userLocation}
+              radiusKm={radiusKm}
+            />
           ) : (
             <ListView key="list" donors={donors} />
           )}
@@ -413,23 +573,67 @@ function HeroSearchSection({
   );
 }
 
-// --------------------- Map View (Simplified SVG Map) ---------------------
+// --------------------- Leaflet helpers ---------------------
+
+// Custom colored-dot marker for donors (avoids default Leaflet pin)
+function donorIcon(available: boolean, verified: boolean) {
+  return L.divIcon({
+    className: "custom-donor-marker",
+    html: `
+      <div style="position:relative;width:20px;height:20px;">
+        <div style="
+          width:16px;height:16px;border-radius:50%;
+          background:${available ? "#E63946" : "#9CA3AF"};
+          border:2px solid white;box-shadow:0 1px 4px rgba(0,0,0,0.3);
+        "></div>
+        ${verified ? `<span style="position:absolute;top:-6px;right:-6px;font-size:10px;">✓</span>` : ""}
+      </div>
+    `,
+    iconSize: [20, 20],
+    iconAnchor: [10, 10],
+  });
+}
+
+// Re-centers the map when the user's location updates
+function RecenterMap({ lat, lng }: { lat: number; lng: number }) {
+  const map = useMap();
+  useEffect(() => {
+    map.setView([lat, lng], map.getZoom());
+  }, [lat, lng, map]);
+  return null;
+}
+
+// Auto-zoom based on radius
+function AutoZoomMap({ radiusKm }: { radiusKm: number }) {
+  const map = useMap();
+
+  useEffect(() => {
+    let zoom = 13;
+    if (radiusKm > 30) zoom = 9;
+    else if (radiusKm > 20) zoom = 10;
+    else if (radiusKm > 10) zoom = 11;
+    else if (radiusKm > 5) zoom = 12;
+    else if (radiusKm > 2) zoom = 13;
+    else zoom = 14;
+
+    map.setZoom(zoom);
+  }, [radiusKm, map]);
+
+  return null;
+}
+
+// --------------------- Map View (OpenStreetMap via Leaflet) ---------------------
 function MapView({
   donors,
   userLocation,
+  radiusKm,
 }: {
   donors: AnonymizedDonor[];
   userLocation: { lat: number; lng: number } | null;
+  radiusKm: number;
 }) {
-  // Simple SVG map representation of Manila area
-  const centerLat = userLocation?.lat || 14.5995;
-  const centerLng = userLocation?.lng || 120.9842;
-
-  const toSVGCoords = (lat: number, lng: number) => {
-    const x = ((lng - 120.97) / 0.03) * 600 + 50;
-    const y = ((14.61 - lat) / 0.02) * 400 + 30;
-    return { x, y };
-  };
+  const centerLat = 9.3116757;
+  const centerLng = 123.306241;
 
   return (
     <motion.div
@@ -439,75 +643,66 @@ function MapView({
       className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden"
     >
       <div className="relative" style={{ height: "450px" }}>
-        <svg viewBox="0 0 700 460" className="w-full h-full">
-          {/* Background */}
-          <rect width="700" height="460" fill="#f0f4f8" rx="16" />
+        <MapContainer
+          center={[centerLat, centerLng]}
+          zoom={13}
+          scrollWheelZoom={true}
+          style={{ height: "100%", width: "100%" }}
+        >
+          {/* OpenStreetMap tiles — free, no API key */}
+          <TileLayer
+            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          />
 
-          {/* Grid lines */}
-          {Array.from({ length: 8 }).map((_, i) => (
-            <line
-              key={`h${i}`}
-              x1="0"
-              y1={i * 57.5}
-              x2="700"
-              y2={i * 57.5}
-              stroke="#e5e7eb"
-              strokeWidth="0.5"
-            />
-          ))}
-
-          {/* Simple roads */}
-          <line x1="100" y1="230" x2="600" y2="230" stroke="#d1d5db" strokeWidth="2" />
-          <line x1="350" y1="30" x2="350" y2="430" stroke="#d1d5db" strokeWidth="2" />
-
-          {/* Manila label */}
-          <text x="350" y="50" textAnchor="middle" className="text-xs" fill="#9ca3af" fontWeight="600">
-            MANILA
-          </text>
-
-          {/* User location */}
           {userLocation && (
             <>
-              <circle
-                cx={toSVGCoords(centerLat, centerLng).x}
-                cy={toSVGCoords(centerLat, centerLng).y}
-                r="8"
-                fill="#3B82F6"
-                stroke="white"
-                strokeWidth="2"
+              <RecenterMap lat={centerLat} lng={centerLng} />
+              <AutoZoomMap radiusKm={radiusKm} />
+              {/* Dynamic radius circle - converts km to meters */}
+              <Circle
+                center={[centerLat, centerLng]}
+                radius={radiusKm * 1000} // Convert km to meters
+                pathOptions={{
+                  color: "#3B82F6",
+                  fillOpacity: 0.15,
+                  weight: 2,
+                  dashArray: "5, 5",
+                }}
               />
-              <circle
-                cx={toSVGCoords(centerLat, centerLng).x}
-                cy={toSVGCoords(centerLat, centerLng).y}
-                r="16"
-                fill="none"
-                stroke="#3B82F6"
-                strokeWidth="1"
-                opacity="0.4"
+              <Marker
+                position={[centerLat, centerLng]}
+                icon={L.divIcon({
+                  className: "user-marker",
+                  html: `<div style="width:14px;height:14px;border-radius:50%;background:#3B82F6;border:2px solid white;box-shadow:0 0 0 4px rgba(59,130,246,0.3);"></div>`,
+                  iconSize: [14, 14],
+                  iconAnchor: [7, 7],
+                })}
               />
             </>
           )}
 
-          {/* Donor pins */}
-          {donors.map((donor) => {
-            const { x, y } = toSVGCoords(donor.fuzzed_lat, donor.fuzzed_lng);
-            const isAvailable = donor.availability_status === "available";
-            return (
-              <g key={donor.display_id} className="cursor-pointer">
-                <circle cx={x} cy={y} r="12" fill={isAvailable ? "#E63946" : "#9CA3AF"} opacity="0.2" />
-                <circle cx={x} cy={y} r="6" fill={isAvailable ? "#E63946" : "#9CA3AF"} stroke="white" strokeWidth="2" />
-                {donor.verification_badge && (
-                  <text x={x + 8} y={y - 8} fontSize="10" fill="#22C55E">
-                    ✓
-                  </text>
-                )}
-              </g>
-            );
-          })}
-        </svg>
+          {donors.map((donor) => (
+            <Marker
+              key={donor.display_id}
+              position={[donor.fuzzed_lat, donor.fuzzed_lng]}
+              icon={donorIcon(donor.availability_status === "available", donor.verification_badge)}
+            >
+              <Popup>
+                <div className="text-sm">
+                  <strong>{donor.display_id}</strong> — {donor.blood_type}
+                  <br />
+                  {donor.distance_km.toFixed(1)} km away
+                  <br />
+                  {donor.availability_status === "available" ? "Available now" : "Resting"}
+                </div>
+              </Popup>
+            </Marker>
+          ))}
+        </MapContainer>
 
-        {/* Legend */}
-        <div className="absolute bottom-4 left-4 bg-white/90 backdrop-blur rounded-lg p-3 shadow text-xs space-y-1">
+        {/* Legend overlay */}
+        <div className="absolute bottom-4 left-4 z-[1000] bg-white/90 backdrop-blur rounded-lg p-3 shadow text-xs space-y-1">
           <div className="flex items-center gap-2">
             <span className="w-3 h-3 rounded-full bg-primary inline-block" /> Available
           </div>
@@ -516,6 +711,19 @@ function MapView({
           </div>
           <div className="flex items-center gap-2">
             <BadgeCheck className="h-3 w-3 text-success" /> Verified
+          </div>
+          <div className="flex items-center gap-2 pt-1 border-t border-gray-200 mt-1">
+            <span className="text-primary font-medium">{radiusKm} km radius</span>
+          </div>
+        </div>
+
+        {/* Radius info overlay - top */}
+        <div className="absolute top-4 right-4 z-[1000] bg-white/90 backdrop-blur rounded-lg px-3 py-2 shadow text-sm">
+          <div className="flex items-center gap-2">
+            <Navigation className="h-4 w-4 text-primary" />
+            <span>
+              <span className="font-semibold text-primary">{radiusKm}</span> km radius
+            </span>
           </div>
         </div>
       </div>
