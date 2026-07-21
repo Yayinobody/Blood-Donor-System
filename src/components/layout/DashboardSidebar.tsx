@@ -3,15 +3,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   LayoutDashboard,
   User,
-  Heart,
-  Bell,
   History,
   MapPin,
-  Building2,
-  ClipboardList,
-  BarChart3,
-  Package,
-  MessageSquare,
   Settings,
   ChevronLeft,
   ChevronRight,
@@ -33,7 +26,6 @@ const donorLinks = [
   { name: "My Profile", path: "/donor/profile", icon: User },
   { name: "Donation History", path: "/donor/history", icon: History },
   { name: "Nearby Requests", path: "/donor/requests", icon: MapPin },
-  { name: "Notifications", path: "/notifications", icon: Bell },
 ];
 
 const generalLinks = [
