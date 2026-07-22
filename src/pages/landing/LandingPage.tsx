@@ -310,23 +310,79 @@ export default function LandingPage() {
   const [showFilters, setShowFilters] = useState(false);
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [locationError, setLocationError] = useState(false);
+  const [locationLoading, setLocationLoading] = useState(true);
+  const [locationPermission, setLocationPermission] = useState<"granted" | "denied" | "prompt">("prompt");
 
-  // Get user location on mount
+  // Get user location on mount with proper permission handling
   useEffect(() => {
-    if (navigator.geolocation) {
+    const getLocation = () => {
+      if (!navigator.geolocation) {
+        setLocationError(true);
+        setLocationLoading(false);
+        setLocationPermission("denied");
+        toast.error("Geolocation is not supported by your browser");
+        return;
+      }
+
+      // Check permission status
+      if (navigator.permissions && navigator.permissions.query) {
+        navigator.permissions.query({ name: 'geolocation' })
+          .then((result) => {
+            setLocationPermission(result.state as "granted" | "denied" | "prompt");
+
+            if (result.state === 'denied') {
+              setLocationError(true);
+              setLocationLoading(false);
+              toast.error('Location permission denied. Please enable location in your browser settings.');
+              return;
+            }
+          })
+          .catch(() => {
+            // Permission API not supported, proceed with getCurrentPosition
+          });
+      }
+
       navigator.geolocation.getCurrentPosition(
         (pos) => {
           setUserLocation({
             lat: pos.coords.latitude,
             lng: pos.coords.longitude,
           });
+          setLocationError(false);
+          setLocationLoading(false);
+          setLocationPermission("granted");
+          toast.success('Location detected successfully!');
         },
-        () => setLocationError(true),
-        { enableHighAccuracy: false, timeout: 5000 }
+        (error) => {
+          console.error('Geolocation error:', error);
+          setLocationError(true);
+          setLocationLoading(false);
+          setLocationPermission("denied");
+
+          // Handle different error types
+          switch(error.code) {
+            case error.PERMISSION_DENIED:
+              toast.error('Location access denied. Please allow location access in your browser settings.');
+              break;
+            case error.POSITION_UNAVAILABLE:
+              toast.error('Location information is unavailable. Please try again.');
+              break;
+            case error.TIMEOUT:
+              toast.error('Location request timed out. Please try again.');
+              break;
+            default:
+              toast.error('Failed to get your location. Please try again.');
+          }
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 15000,
+          maximumAge: 300000 // 5 minutes cache
+        }
       );
-    } else {
-      setLocationError(true);
-    }
+    };
+
+    getLocation();
   }, []);
 
   // Filter donors by blood type compatibility
@@ -359,6 +415,12 @@ export default function LandingPage() {
         donors={sortedDonors}
         userLocation={userLocation}
         locationError={locationError}
+        locationLoading={locationLoading}
+        locationPermission={locationPermission}
+        setLocationPermission={setLocationPermission}
+        setUserLocation={setUserLocation}
+        setLocationError={setLocationError}
+        setLocationLoading={setLocationLoading}
       />
 
       {/* Problem Section */}
@@ -378,8 +440,6 @@ export default function LandingPage() {
 
       {/* CTA */}
       <CTASection />
-
-      {/* AI Chat Widget - REMOVED from here, now in MainLayout */}
     </div>
   );
 }
@@ -397,6 +457,12 @@ function HeroSearchSection({
   donors,
   userLocation,
   locationError,
+  locationLoading,
+  locationPermission,
+  setLocationPermission,
+  setUserLocation,
+  setLocationError,
+  setLocationLoading,
 }: {
   viewMode: "map" | "list";
   setViewMode: (m: "map" | "list") => void;
@@ -409,7 +475,62 @@ function HeroSearchSection({
   donors: AnonymizedDonor[];
   userLocation: { lat: number; lng: number } | null;
   locationError: boolean;
+  locationLoading: boolean;
+  locationPermission: "granted" | "denied" | "prompt";
+  setLocationPermission: (p: "granted" | "denied" | "prompt") => void;
+  setUserLocation: (loc: { lat: number; lng: number } | null) => void;
+  setLocationError: (err: boolean) => void;
+  setLocationLoading: (loading: boolean) => void;
 }) {
+
+  // Function to request location permission manually
+  const requestLocationPermission = () => {
+    if (!navigator.geolocation) {
+      toast.error('Geolocation is not supported by your browser');
+      return;
+    }
+
+    setLocationLoading(true);
+
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setUserLocation({
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude,
+        });
+        setLocationError(false);
+        setLocationLoading(false);
+        setLocationPermission("granted");
+        toast.success('Location access granted! Showing donors near you.');
+      },
+      (error) => {
+        console.error('Geolocation error:', error);
+        setLocationError(true);
+        setLocationLoading(false);
+        setLocationPermission("denied");
+
+        switch(error.code) {
+          case error.PERMISSION_DENIED:
+            toast.error('Location access denied. Please enable location in your browser settings and refresh the page.');
+            break;
+          case error.POSITION_UNAVAILABLE:
+            toast.error('Location information is unavailable. Please try again.');
+            break;
+          case error.TIMEOUT:
+            toast.error('Location request timed out. Please try again.');
+            break;
+          default:
+            toast.error('Failed to get your location. Please try again.');
+        }
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 15000,
+        maximumAge: 300000
+      }
+    );
+  };
+
   return (
     <section className="relative min-h-screen bg-gradient-to-br from-primary/5 via-white to-accent/10">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pt-24 pb-12">
@@ -517,22 +638,99 @@ function HeroSearchSection({
           </AnimatePresence>
         </motion.div>
 
-        {/* Location status */}
-        {locationError && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="text-center mb-4"
-          >
-            <p className="text-sm text-gray-500">
-              <Navigation className="h-4 w-4 inline mr-1" />
-              Showing donors near Dumaguete.{" "}
-              <button className="text-primary underline" onClick={() => toast.success("Location access granted (demo)")}>
-                Enable location
-              </button>
-            </p>
-          </motion.div>
-        )}
+        {/* Location status with permission handling */}
+        <div className="text-center mb-4">
+          {locationLoading ? (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="text-sm text-gray-500"
+            >
+              <div className="inline-flex items-center gap-2">
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
+                Detecting your location...
+              </div>
+            </motion.div>
+          ) : locationError && locationPermission === "denied" ? (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="text-sm"
+            >
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 max-w-md mx-auto">
+                <p className="text-yellow-700 flex items-center gap-2">
+                  <Navigation className="h-4 w-4" />
+                  <span>Location access is blocked.</span>
+                </p>
+                <div className="mt-2 flex flex-col sm:flex-row gap-2 justify-center">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      toast.info('Please enable location in your browser settings and refresh the page.');
+                      // Open browser settings or show instructions
+                      if (navigator.userAgent.includes('Chrome')) {
+                        toast.info('Chrome: Click the lock icon in the address bar → Site settings → Location → Allow');
+                      } else if (navigator.userAgent.includes('Firefox')) {
+                        toast.info('Firefox: Click the shield icon → Clear cookies and site data → Reload');
+                      } else if (navigator.userAgent.includes('Safari')) {
+                        toast.info('Safari: Safari → Preferences → Websites → Location → Allow');
+                      }
+                    }}
+                  >
+                    How to enable
+                  </Button>
+                  <Button
+                    size="sm"
+                    className="bg-primary"
+                    onClick={requestLocationPermission}
+                  >
+                    Try Again
+                  </Button>
+                </div>
+              </div>
+            </motion.div>
+          ) : locationError && locationPermission === "prompt" ? (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="text-sm"
+            >
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 max-w-md mx-auto">
+                <p className="text-blue-700 flex items-center gap-2">
+                  <Navigation className="h-4 w-4" />
+                  <span>Allow location to find donors near you.</span>
+                </p>
+                <Button
+                  size="sm"
+                  className="mt-2 bg-primary"
+                  onClick={requestLocationPermission}
+                >
+                  Allow Location Access
+                </Button>
+              </div>
+            </motion.div>
+          ) : userLocation ? (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="text-sm text-green-600"
+            >
+              <div className="flex items-center justify-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
+                <span>Location detected! Showing donors near you.</span>
+                <button
+                  className="text-xs text-primary underline ml-2"
+                  onClick={() => {
+                    toast.success(`📍 Location: ${userLocation.lat.toFixed(4)}, ${userLocation.lng.toFixed(4)}`);
+                  }}
+                >
+                  View coordinates
+                </button>
+              </div>
+            </motion.div>
+          ) : null}
+        </div>
 
         {/* Results count */}
         <motion.p
@@ -542,6 +740,7 @@ function HeroSearchSection({
         >
           {donors.length} donor{donors.length !== 1 ? "s" : ""} found
           {selectedBloodType && ` compatible with ${selectedBloodType}`}
+          {userLocation && ` within ${radiusKm}km`}
         </motion.p>
 
         {/* View: Map or List */}
@@ -624,6 +823,165 @@ function MapView({
   const centerLat = 9.3116757;
   const centerLng = 123.306241;
 
+  // Group donors by location (fuzzed to the same coordinates)
+  const groupedDonors = donors.reduce((acc, donor) => {
+    const key = `${donor.fuzzed_lat.toFixed(4)},${donor.fuzzed_lng.toFixed(4)}`;
+    if (!acc[key]) {
+      acc[key] = [];
+    }
+    acc[key].push(donor);
+    return acc;
+  }, {} as Record<string, AnonymizedDonor[]>);
+
+  // Component to render radius circles with fixed geographic size
+  function RadiusMarkerCluster({
+    lat,
+    lng,
+    donors: donorGroup,
+    centerLat,
+    centerLng
+  }: {
+    lat: number;
+    lng: number;
+    donors: AnonymizedDonor[];
+    centerLat: number;
+    centerLng: number;
+  }) {
+    const count = donorGroup.length;
+    const hasAvailable = donorGroup.some(d => d.availability_status === 'available');
+    const hasVerified = donorGroup.some(d => d.verification_badge);
+    const avgDistance = donorGroup.reduce((sum, d) => sum + d.distance_km, 0) / count;
+
+    // Fixed geographic radius of 300 meters (0.3km)
+    const radiusMeters = 300;
+
+    // Calculate position relative to center for display
+    const position = [lat, lng] as [number, number];
+
+    return (
+      <>
+        {/* Fixed geographic radius circle */}
+        <Circle
+          center={position}
+          radius={radiusMeters}
+          pathOptions={{
+            color: hasAvailable ? '#E63946' : '#9CA3AF',
+            fillColor: hasAvailable ? '#E63946' : '#9CA3AF',
+            fillOpacity: 0.15,
+            weight: 2,
+            opacity: 0.6,
+          }}
+        />
+
+        {/* Center marker with count */}
+        <Marker
+          position={position}
+          icon={L.divIcon({
+            className: "custom-radius-marker",
+            html: `
+              <div style="
+                position: relative;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+              ">
+                <div style="
+                  background: ${hasAvailable ? '#E63946' : '#9CA3AF'};
+                  color: white;
+                  border-radius: 50%;
+                  width: ${Math.min(36 + count * 2, 50)}px;
+                  height: ${Math.min(36 + count * 2, 50)}px;
+                  display: flex;
+                  align-items: center;
+                  justify-content: center;
+                  font-weight: bold;
+                  font-size: ${count > 9 ? '11px' : '14px'};
+                  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+                  border: 3px solid white;
+                  cursor: pointer;
+                  transition: transform 0.2s;
+                ">
+                  ${count}
+                  ${hasVerified ? '<span style="position:absolute;top:-4px;right:-4px;font-size:10px;background:green;color:white;border-radius:50%;width:16px;height:16px;display:flex;align-items:center;justify-content:center;">✓</span>' : ''}
+                </div>
+                ${hasAvailable ? `
+                  <div style="
+                    position: absolute;
+                    width: 200%;
+                    height: 200%;
+                    border-radius: 50%;
+                    background: rgba(230, 57, 70, 0.1);
+                    animation: pulse 2s ease-in-out infinite;
+                  "></div>
+                ` : ''}
+              </div>
+            `,
+            className: "radius-marker",
+            iconSize: [50, 50],
+            iconAnchor: [25, 25],
+          })}
+        >
+          <Popup className="donor-popup" maxWidth={300}>
+            <div className="text-sm p-1">
+              <div className="flex items-center justify-between mb-2">
+                <strong className="text-dark">
+                  {count} donor{count > 1 ? 's' : ''} at this location
+                </strong>
+                {hasVerified && (
+                  <Badge variant="success" className="text-xs gap-1">
+                    <BadgeCheck className="h-3 w-3" /> Verified
+                  </Badge>
+                )}
+              </div>
+
+              <div className="space-y-2 max-h-48 overflow-y-auto">
+                {donorGroup.map((donor, idx) => (
+                  <div key={idx} className="border-t border-gray-100 pt-2 first:border-t-0 first:pt-0">
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-medium">{donor.display_id}</span>
+                          <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded">
+                            {donor.blood_type}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-3 text-xs text-gray-500 mt-0.5 flex-wrap">
+                          <span className="flex items-center gap-1">
+                            <MapPin className="h-3 w-3" /> {donor.distance_km.toFixed(1)} km
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <Clock className="h-3 w-3" />
+                            {donor.availability_status === 'available'
+                              ? 'Available now'
+                              : donor.availability_status === 'resting'
+                              ? 'Resting'
+                              : 'Unavailable'}
+                          </span>
+                          {donor.verification_badge && (
+                            <BadgeCheck className="h-3 w-3 text-success" />
+                          )}
+                        </div>
+                      </div>
+                      <Link to={`/seeker/request/${donor.display_id.replace("Donor #", "")}`}>
+                        <Button
+                          size="sm"
+                          disabled={donor.availability_status !== 'available'}
+                          className={donor.availability_status === 'available' ? 'bg-primary ml-2 flex-shrink-0' : 'bg-gray-300 ml-2 flex-shrink-0'}
+                        >
+                          Request
+                        </Button>
+                      </Link>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </Popup>
+        </Marker>
+      </>
+    );
+  }
+
   return (
     <motion.div
       initial={{ opacity: 0, scale: 0.95 }}
@@ -638,7 +996,6 @@ function MapView({
           scrollWheelZoom={true}
           style={{ height: "100%", width: "100%", zIndex: 0 }}
         >
-          {/* OpenStreetMap tiles — free, no API key */}
           <TileLayer
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -648,13 +1005,12 @@ function MapView({
             <>
               <RecenterMap lat={centerLat} lng={centerLng} />
               <AutoZoomMap radiusKm={radiusKm} />
-              {/* Dynamic radius circle - converts km to meters */}
               <Circle
                 center={[centerLat, centerLng]}
-                radius={radiusKm * 1000} // Convert km to meters
+                radius={radiusKm * 1000}
                 pathOptions={{
                   color: "#3B82F6",
-                  fillOpacity: 0.15,
+                  fillOpacity: 0.1,
                   weight: 2,
                   dashArray: "5, 5",
                 }}
@@ -671,47 +1027,65 @@ function MapView({
             </>
           )}
 
-          {donors.map((donor) => (
-            <Marker
-              key={donor.display_id}
-              position={[donor.fuzzed_lat, donor.fuzzed_lng]}
-              icon={donorIcon(donor.availability_status === "available", donor.verification_badge)}
-            >
-              <Popup>
-                <div className="text-sm">
-                  <strong>{donor.display_id}</strong> — {donor.blood_type}
-                  <br />
-                  {donor.distance_km.toFixed(1)} km away
-                  <br />
-                  {donor.availability_status === "available" ? "Available now" : "Resting"}
-                </div>
-              </Popup>
-            </Marker>
-          ))}
+          {/* Render grouped donors as fixed geographic radius circles */}
+          {Object.entries(groupedDonors).map(([key, donorGroup]) => {
+            const [lat, lng] = key.split(',').map(Number);
+            return (
+              <RadiusMarkerCluster
+                key={key}
+                lat={lat}
+                lng={lng}
+                donors={donorGroup}
+                centerLat={centerLat}
+                centerLng={centerLng}
+              />
+            );
+          })}
         </MapContainer>
+
+        {/* Add CSS animations for pulse effect */}
+        <style>{`
+          @keyframes pulse {
+            0% {
+              transform: scale(1);
+              opacity: 0.5;
+            }
+            50% {
+              transform: scale(1.2);
+              opacity: 0.1;
+            }
+            100% {
+              transform: scale(1);
+              opacity: 0.5;
+            }
+          }
+        `}</style>
 
         {/* Legend overlay */}
         <div className="absolute bottom-4 left-4 z-[1000] bg-white/90 backdrop-blur rounded-lg p-3 shadow text-xs space-y-1">
           <div className="flex items-center gap-2">
-            <span className="w-3 h-3 rounded-full bg-primary inline-block" /> Available
+            <div className="w-4 h-4 rounded-full border-2 border-primary bg-primary/15 inline-block" />
+            Available Donors
           </div>
           <div className="flex items-center gap-2">
-            <span className="w-3 h-3 rounded-full bg-gray-400 inline-block" /> Resting
+            <div className="w-4 h-4 rounded-full border-2 border-gray-400 bg-gray-400/15 inline-block" />
+            Resting Donors
           </div>
           <div className="flex items-center gap-2">
-            <BadgeCheck className="h-3 w-3 text-success" /> Verified
+            <div className="w-3 h-3 rounded-full bg-primary inline-block" />
+            {radiusKm} km Search Radius
           </div>
           <div className="flex items-center gap-2 pt-1 border-t border-gray-200 mt-1">
-            <span className="text-primary font-medium">{radiusKm} km radius</span>
+            <span className="text-xs text-gray-500">Each circle = 300m radius</span>
           </div>
         </div>
 
-        {/* Radius info overlay - top */}
+        {/* Info overlay */}
         <div className="absolute top-4 right-4 z-[1000] bg-white/90 backdrop-blur rounded-lg px-3 py-2 shadow text-sm">
           <div className="flex items-center gap-2">
-            <Navigation className="h-4 w-4 text-primary" />
+            <Users className="h-4 w-4 text-primary" />
             <span>
-              <span className="font-semibold text-primary">{radiusKm}</span> km radius
+              <span className="font-semibold text-primary">{donors.length}</span> donors in {Object.keys(groupedDonors).length} locations
             </span>
           </div>
         </div>
