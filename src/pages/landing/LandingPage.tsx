@@ -1062,7 +1062,7 @@ function MapView({
         `}</style>
 
         {/* Legend overlay */}
-        <div className="absolute bottom-4 left-4 z-[1000] bg-white/90 backdrop-blur rounded-lg p-3 shadow text-xs space-y-1">
+        <div className="absolute bottom-4 left-4 bg-white/90 backdrop-blur rounded-lg p-3 shadow text-xs space-y-1">
           <div className="flex items-center gap-2">
             <div className="w-4 h-4 rounded-full border-2 border-primary bg-primary/15 inline-block" />
             Available Donors
@@ -1081,7 +1081,7 @@ function MapView({
         </div>
 
         {/* Info overlay */}
-        <div className="absolute top-4 right-4 z-[1000] bg-white/90 backdrop-blur rounded-lg px-3 py-2 shadow text-sm">
+        <div className="absolute top-4 right-4 bg-white/90 backdrop-blur rounded-lg px-3 py-2 shadow text-sm">
           <div className="flex items-center gap-2">
             <Users className="h-4 w-4 text-primary" />
             <span>

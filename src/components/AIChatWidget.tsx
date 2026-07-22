@@ -19,6 +19,8 @@ import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import type { AssistantMessage } from "@/types";
 import axios from "axios";
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 interface AIChatWidgetProps {
   isOpen: boolean;
@@ -247,10 +249,20 @@ export function AIChatWidget({
                         : "bg-white border text-dark rounded-bl-md"
                     )}
                   >
-                    <p className="whitespace-pre-wrap">{msg.content}</p>
+                    {/* Render markdown content with bold support */}
+                    <ReactMarkdown
+                      remarkPlugins={[remarkGfm]}
+                      components={{
+                        // Override paragraph to keep whitespace handling
+                        p: ({ children }) => <p className="whitespace-pre-wrap">{children}</p>,
+                        // You can add more customizations if needed
+                      }}
+                    >
+                      {msg.content}
+                    </ReactMarkdown>
 
                     {/* Display sources if available */}
-                    {msg.metadata?.sources && msg.metadata.sources.length > 0 && (
+                    {/*{msg.metadata?.sources && msg.metadata.sources.length > 0 && (
                       <div className="mt-2 pt-2 border-t border-gray-200">
                         <p className="text-xs text-gray-500">Sources:</p>
                         <div className="flex flex-wrap gap-1 mt-1">
@@ -264,7 +276,7 @@ export function AIChatWidget({
                           ))}
                         </div>
                       </div>
-                    )}
+                    )}*/}
 
                     {msg.scope === "out_of_scope" && (
                       <p className="text-xs text-gray-500 mt-1 italic">
@@ -315,7 +327,7 @@ export function AIChatWidget({
                   onKeyDown={handleKeyPress}
                   placeholder="Ask about eligibility, compatibility..."
                   disabled={isLoading}
-                  className="flex-1 text-sm"
+                  className="flex-1 text-sm text-black"  // 👈 Forces black text color
                 />
                 <Button
                   size="icon"
