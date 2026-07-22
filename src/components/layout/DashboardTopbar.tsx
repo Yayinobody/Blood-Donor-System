@@ -59,13 +59,7 @@ export default function DashboardTopbar({ onMenuClick }: TopbarProps) {
 
       {/* Right section */}
       <div className="flex items-center gap-2">
-        {/* Notifications */}
-        <Button variant="ghost" size="icon" className="relative">
-          <Bell className="h-5 w-5" />
-          <span className="absolute -top-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-white">
-            3
-          </span>
-        </Button>
+
 
         {/* User dropdown */}
         <DropdownMenu>

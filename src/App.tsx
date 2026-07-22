@@ -17,7 +17,7 @@ const DonorRequests = lazy(() => import("@/pages/donor/Requests"));
 const DonorHistory = lazy(() => import("@/pages/donor/History"));
 const DonorVerification = lazy(() => import("@/pages/donor/Verification"));
 const ConnectScreen = lazy(() => import("@/pages/shared/ConnectScreen"));
-const AIAssistantPage = lazy(() => import("@/pages/ai-assistant/AIAssistant"));
+// const AIAssistantPage = lazy(() => import("@/pages/ai-assistant/AIAssistant"));
 const SeekerRequestForm = lazy(() => import("@/pages/seeker/RequestForm"));
 const SeekerConfirmation = lazy(() => import("@/pages/seeker/Confirmation"));
 const SeekerVerify = lazy(() => import("@/pages/seeker/Verify"));
@@ -53,7 +53,7 @@ function App() {
           <Route path="/donor/history" element={<DonorHistory />} />
           <Route path="/donor/verification" element={<DonorVerification />} />
           <Route path="/connect/:matchId" element={<ConnectScreen />} />
-          <Route path="/ai-assistant" element={<AIAssistantPage />} />
+          {/*<Route path="/ai-assistant" element={<AIAssistantPage />} />*/}
         </Route>
       </Routes>
     </Suspense>

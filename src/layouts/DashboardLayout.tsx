@@ -3,6 +3,7 @@ import { Outlet } from "react-router-dom";
 import DashboardSidebar from "@/components/layout/DashboardSidebar";
 import DashboardTopbar from "@/components/layout/DashboardTopbar";
 import { cn } from "@/lib/utils";
+import { AIChatProvider } from "@/context/AIChatContext";
 
 export default function DashboardLayout() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -11,8 +12,9 @@ export default function DashboardLayout() {
   return (
     <div className="flex h-screen overflow-hidden bg-background">
       {/* Sidebar for desktop */}
-      <DashboardSidebar
-        collapsed={sidebarCollapsed}
+      <AIChatProvider>
+        <DashboardSidebar
+          collapsed={sidebarCollapsed}
         setCollapsed={setSidebarCollapsed}
         mobileOpen={mobileSidebarOpen}
         setMobileOpen={setMobileSidebarOpen}
@@ -26,7 +28,8 @@ export default function DashboardLayout() {
         <main className="flex-1 overflow-y-auto p-4 lg:p-6">
           <Outlet />
         </main>
-      </div>
+        </div>
+        </AIChatProvider>
     </div>
   );
 }

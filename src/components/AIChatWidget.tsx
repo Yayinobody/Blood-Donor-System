@@ -10,11 +10,17 @@ import {
   Sparkles,
   Shield,
   Loader2,
+  AlertCircle,
+  Bot,
+  User,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import type { AssistantMessage } from "@/types";
+import axios from "axios";
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 interface AIChatWidgetProps {
   isOpen: boolean;
@@ -22,7 +28,20 @@ interface AIChatWidgetProps {
   initialMessages?: AssistantMessage[];
   position?: "bottom-right" | "bottom-left";
   className?: string;
+  apiBaseUrl?: string; // Allow custom API URL
 }
+
+interface ChatResponse {
+  answer: string;
+  sources: Array<{
+    source: string;
+    file_name: string;
+    score: number;
+  }>;
+}
+
+// Default API Base URL
+const DEFAULT_API_BASE_URL = "http://localhost:8000";
 
 export function AIChatWidget({
   isOpen,
@@ -30,6 +49,7 @@ export function AIChatWidget({
   initialMessages,
   position = "bottom-right",
   className,
+  apiBaseUrl = DEFAULT_API_BASE_URL,
 }: AIChatWidgetProps) {
   const [messages, setMessages] = useState<AssistantMessage[]>(
     initialMessages || [
@@ -37,7 +57,7 @@ export function AIChatWidget({
         id: "welcome",
         role: "assistant",
         content:
-          "Hi! I'm the AnonBlood assistant. I can help with blood donation questions, compatibility info, and finding donation centers. How can I help?",
+          "Hello! I'm your privacy-first AI assistant. I can help you with blood donation eligibility, compatibility, and medical guidance. Your identity remains anonymous. How can I help you today?",
         timestamp: new Date(),
         scope: "public",
       },
@@ -45,56 +65,116 @@ export function AIChatWidget({
   );
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
+  // Scroll to bottom when messages change
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
   const handleSend = async () => {
-    if (!input.trim() || isLoading) return;
+    const messageText = input.trim();
+    if (!messageText || isLoading) return;
 
-    const userMsg: AssistantMessage = {
+    // Clear any previous errors
+    setError(null);
+
+    const userMessage: AssistantMessage = {
       id: Date.now().toString(),
       role: "user",
-      content: input.trim(),
+      content: messageText,
       timestamp: new Date(),
+      scope: "public",
     };
 
-    setMessages((prev) => [...prev, userMsg]);
+    setMessages((prev) => [...prev, userMessage]);
     setInput("");
     setIsLoading(true);
 
-    // Simulate AI response (you can replace this with actual API call)
-    setTimeout(() => {
-      const lower = userMsg.content.toLowerCase();
-      let response: string;
+    try {
+      const response = await axios.post<ChatResponse>(
+        `${apiBaseUrl}/api/chat`,
+        { question: messageText },
+        {
+          headers: {
+            "Content-Type": "application/json",
+          },
+          timeout: 30000, // 30 second timeout
+        }
+      );
+
+      // Determine scope based on content or response
       let scope: "public" | "personal" | "out_of_scope" = "public";
 
-      if (lower.includes("nearest") || lower.includes("donation center") || lower.includes("blood bank")) {
-        response = `Based on our database, the nearest blood donation centers are:\n\n1. **Philippine Red Cross - Manila** — Bonifacio Drive, Port Area\n2. **PGH Blood Bank** — Taft Avenue, Ermita\n3. **St. Luke's Medical Center** — Quezon City\n\nWould you like directions to any of these?`;
-      } else if (lower.includes("compatible") || lower.includes("donate to")) {
-        response = `Blood type compatibility:\n\n- **O-** can donate to: all types (universal donor)\n- **O+** can donate to: O+, A+, B+, AB+\n- **A-** can donate to: A-, A+, AB-, AB+\n- **B-** can donate to: B-, B+, AB-, AB+\n- **AB+** can donate to: AB+ only (universal recipient)\n\nWhich type are you asking about?`;
-      } else if (lower.includes("weight") || lower.includes("eligible")) {
-        response = `According to WHO and DOH guidelines, to donate blood you generally need to:\n\n- Be at least 17 years old\n- Weigh at least 50 kg (110 lbs)\n- Be in good health\n- Not have donated whole blood in the last 12 weeks\n\nSpecific conditions may affect eligibility. Would you like more details?`;
-      } else if (lower.includes("personal") || lower.includes("my") || lower.includes("account")) {
-        response = `I can't access personal account information in public mode. Please log in to ask questions about your specific eligibility or donation history.`;
+      // Check if the question might be personal
+      const personalKeywords = ["my", "mine", "me", "personal", "account", "history", "my blood type"];
+      if (personalKeywords.some(keyword => messageText.toLowerCase().includes(keyword))) {
         scope = "out_of_scope";
-      } else {
-        response = `Good question! For the most accurate information, I recommend checking the WHO blood donation guidelines or speaking with a medical professional. Is there something specific about blood donation I can help clarify?`;
       }
 
-      const aiMsg: AssistantMessage = {
+      // Check if response contains sources
+      const hasSources = response.data.sources && response.data.sources.length > 0;
+
+      const aiMessage: AssistantMessage = {
         id: (Date.now() + 1).toString(),
         role: "assistant",
-        content: response,
+        content: response.data.answer,
         timestamp: new Date(),
         scope,
+        // Add sources as metadata if needed
+        metadata: hasSources ? { sources: response.data.sources } : undefined,
       };
-      setMessages((prev) => [...prev, aiMsg]);
+
+      setMessages((prev) => [...prev, aiMessage]);
+
+      // Log sources for debugging
+      if (hasSources) {
+        console.log("Sources:", response.data.sources);
+      }
+    } catch (err) {
+      console.error("Error calling AI:", err);
+      let errorMessage = "I'm sorry, I encountered an error. Please try again later.";
+
+      if (axios.isAxiosError(err)) {
+        if (err.code === "ECONNABORTED") {
+          errorMessage = "The request timed out. Please try again.";
+        } else if (err.response) {
+          errorMessage = err.response.data?.detail || errorMessage;
+        } else if (err.request) {
+          errorMessage = "Cannot connect to the AI service. Please make sure the backend is running.";
+        }
+      }
+
+      setError(errorMessage);
+
+      const errorAiMessage: AssistantMessage = {
+        id: (Date.now() + 1).toString(),
+        role: "assistant",
+        content: errorMessage,
+        timestamp: new Date(),
+        scope: "public",
+      };
+      setMessages((prev) => [...prev, errorAiMessage]);
+    } finally {
       setIsLoading(false);
-    }, 1200);
+    }
   };
+
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
+  };
+
+  // Focus input when chat opens
+  useEffect(() => {
+    if (isOpen) {
+      setTimeout(() => inputRef.current?.focus(), 100);
+    }
+  }, [isOpen]);
 
   const positionClasses = {
     "bottom-right": "bottom-24 right-6",
@@ -134,50 +214,106 @@ export function AIChatWidget({
             )}
           >
             {/* Header */}
-            <div className="bg-primary p-4 text-white z-50">
+            <div className="bg-primary p-4 text-white">
               <div className="flex items-center gap-2">
                 <Sparkles className="h-5 w-5" />
-                <span className="font-semibold">AnonBlood Assistant</span>
+                <span className="font-semibold">AnonBlood AI</span>
               </div>
               <p className="text-xs text-white/70 mt-0.5">
-                <Shield className="h-3 w-3 inline mr-1" /> Public mode — no personal data
+                <Shield className="h-3 w-3 inline mr-1" /> Anonymous & encrypted session
               </p>
             </div>
 
             {/* Messages */}
             <div className="h-80 overflow-y-auto p-4 space-y-3 bg-gray-50">
               {messages.map((msg) => (
-                <div
+                <motion.div
                   key={msg.id}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
                   className={cn(
-                    "flex",
+                    "flex gap-2",
                     msg.role === "user" ? "justify-end" : "justify-start"
                   )}
                 >
+                  {msg.role === "assistant" && (
+                    <div className="h-7 w-7 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 mt-1">
+                      <Bot className="h-3.5 w-3.5 text-primary" />
+                    </div>
+                  )}
                   <div
                     className={cn(
-                      "max-w-[85%] rounded-2xl px-3 py-2 text-sm",
+                      "max-w-[80%] rounded-2xl px-3 py-2 text-sm",
                       msg.role === "user"
                         ? "bg-primary text-white rounded-br-md"
                         : "bg-white border text-dark rounded-bl-md"
                     )}
                   >
-                    <p className="whitespace-pre-wrap">{msg.content}</p>
+                    {/* Render markdown content with bold support */}
+                    <ReactMarkdown
+                      remarkPlugins={[remarkGfm]}
+                      components={{
+                        // Override paragraph to keep whitespace handling
+                        p: ({ children }) => <p className="whitespace-pre-wrap">{children}</p>,
+                        // You can add more customizations if needed
+                      }}
+                    >
+                      {msg.content}
+                    </ReactMarkdown>
+
+                    {/* Display sources if available */}
+                    {/*{msg.metadata?.sources && msg.metadata.sources.length > 0 && (
+                      <div className="mt-2 pt-2 border-t border-gray-200">
+                        <p className="text-xs text-gray-500">Sources:</p>
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {msg.metadata.sources.map((source, idx) => (
+                            <span
+                              key={idx}
+                              className="text-xs bg-gray-100 px-2 py-0.5 rounded-full"
+                            >
+                              {source.source}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}*/}
+
                     {msg.scope === "out_of_scope" && (
-                      <p className="text-xs text-gray-400 mt-1 italic">
-                        (Out of scope — login required)
+                      <p className="text-xs text-gray-500 mt-1 italic">
+                        (Personal data not accessible in public mode)
                       </p>
                     )}
+
+                    <span className="text-[10px] opacity-70 block mt-1">
+                      {msg.timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                    </span>
                   </div>
-                </div>
+                  {msg.role === "user" && (
+                    <div className="h-7 w-7 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0 mt-1">
+                      <User className="h-3.5 w-3.5 text-gray-500" />
+                    </div>
+                  )}
+                </motion.div>
               ))}
+
               {isLoading && (
-                <div className="flex justify-start">
-                  <div className="bg-white border rounded-2xl rounded-bl-md px-3 py-2">
+                <div className="flex gap-2 justify-start">
+                  <div className="h-7 w-7 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 mt-1">
+                    <Bot className="h-3.5 w-3.5 text-primary" />
+                  </div>
+                  <div className="bg-white border rounded-2xl rounded-bl-md px-4 py-3">
                     <Loader2 className="h-4 w-4 animate-spin text-primary" />
                   </div>
                 </div>
               )}
+
+              {error && (
+                <div className="flex items-center gap-2 text-red-500 text-sm p-3 bg-red-50 rounded-lg">
+                  <AlertCircle className="h-4 w-4 flex-shrink-0" />
+                  <span>{error}</span>
+                </div>
+              )}
+
               <div ref={messagesEndRef} />
             </div>
 
@@ -185,21 +321,27 @@ export function AIChatWidget({
             <div className="border-t p-3 bg-white">
               <div className="flex gap-2">
                 <Input
+                  ref={inputRef}
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && handleSend()}
-                  placeholder="Ask about blood donation..."
-                  className="flex-1 text-sm"
+                  onKeyDown={handleKeyPress}
+                  placeholder="Ask about eligibility, compatibility..."
+                  disabled={isLoading}
+                  className="flex-1 text-sm text-black"  // 👈 Forces black text color
                 />
                 <Button
                   size="icon"
                   onClick={handleSend}
                   disabled={!input.trim() || isLoading}
-                  className="bg-primary"
+                  className="bg-primary hover:bg-primary-600 flex-shrink-0"
                 >
                   <Send className="h-4 w-4" />
                 </Button>
               </div>
+              <p className="text-xs text-gray-400 mt-2 text-center">
+                <Shield className="inline h-3 w-3 mr-1" />
+                End-to-end encrypted • No personal data stored
+              </p>
             </div>
           </motion.div>
         )}

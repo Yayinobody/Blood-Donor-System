@@ -3,15 +3,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   LayoutDashboard,
   User,
-  Heart,
-  Bell,
   History,
   MapPin,
-  Building2,
-  ClipboardList,
-  BarChart3,
-  Package,
-  MessageSquare,
   Settings,
   ChevronLeft,
   ChevronRight,
@@ -33,19 +26,9 @@ const donorLinks = [
   { name: "My Profile", path: "/donor/profile", icon: User },
   { name: "Donation History", path: "/donor/history", icon: History },
   { name: "Nearby Requests", path: "/donor/requests", icon: MapPin },
-  { name: "Notifications", path: "/notifications", icon: Bell },
-];
-
-const hospitalLinks = [
-  { name: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
-  { name: "Hospital Profile", path: "/hospital/profile", icon: Building2 },
-  { name: "Blood Requests", path: "/hospital/requests", icon: ClipboardList },
-  { name: "Inventory", path: "/hospital/inventory", icon: Package },
-  { name: "Analytics", path: "/analytics", icon: BarChart3 },
 ];
 
 const generalLinks = [
-  { name: "AI Assistant", path: "/ai-assistant", icon: MessageSquare },
   { name: "Settings", path: "/settings", icon: Settings },
 ];
 
@@ -111,18 +94,6 @@ export default function DashboardSidebar({
         ))}
 
         <div className="my-3 border-t border-gray-100" />
-
-        <p className={cn("px-3 text-xs font-semibold uppercase text-gray-400", collapsed && "lg:text-center")}>
-          Hospital
-        </p>
-        {hospitalLinks.map((link) => (
-          <NavItem
-            key={link.path}
-            link={link}
-            active={location.pathname === link.path}
-            collapsed={collapsed}
-          />
-        ))}
 
         <div className="my-3 border-t border-gray-100" />
 
