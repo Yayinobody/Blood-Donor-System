@@ -22,7 +22,6 @@ Settings.llm = OpenAI(model="gpt-4o-mini")
 qa_prompt = PromptTemplate(
     """
 You are the AI assistant for AnonBlood.
-
 You answer questions about:
 - Blood donation
 - Blood compatibility
@@ -32,10 +31,8 @@ You answer questions about:
 - Donor and seeker workflows
 
 Use only the retrieved context to answer.
-
 If the answer is not found in the provided context, reply:
 "I don't have enough information in my knowledge base to answer that."
-
 Do not invent features or procedures.
 Do not answer unrelated questions.
 
@@ -63,12 +60,24 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
 class QueryRequest(BaseModel):
     question: str
 
+
+class SourceInfo(BaseModel):
+    organization: str
+    document_title: str
+    page: str | None = None
+    url: str | None = None
+    document_type: str | None = None
+    score: float | None = None
+
+
 class QueryResponse(BaseModel):
     answer: str
-    sources: list[dict]
+    sources: list[SourceInfo]
+
 
 def get_vector_store(overwrite: bool = False):
     return MilvusVectorStore(
@@ -77,6 +86,7 @@ def get_vector_store(overwrite: bool = False):
         dim=1536,
         overwrite=overwrite,
     )
+
 
 @app.post("/api/chat", response_model=QueryResponse)
 async def chat(request: QueryRequest):
@@ -88,28 +98,33 @@ async def chat(request: QueryRequest):
             response_mode="compact",
             text_qa_template=qa_prompt,
         )
-
         response = query_engine.query(request.question)
 
         sources = []
         for node in response.source_nodes:
-            sources.append({
-                "source": node.metadata.get("source", "Unknown"),
-                "file_name": node.metadata.get("file_name", "Unknown"),
-                "score": round(node.score, 2) if hasattr(node, 'score') else None
-            })
+            # These keys match what ingest.py now writes to each node's
+            # metadata: organization, document_title, page, url, document_type.
+            sources.append(SourceInfo(
+                organization=node.metadata.get("organization", "Unknown"),
+                document_title=node.metadata.get("document_title", "Unknown"),
+                page=node.metadata.get("page"),
+                url=node.metadata.get("url"),
+                document_type=node.metadata.get("document_type"),
+                score=round(node.score, 2) if hasattr(node, "score") and node.score is not None else None,
+            ))
 
         return QueryResponse(
             answer=str(response),
             sources=sources
         )
-
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
 
 @app.get("/api/health")
 async def health_check():
     return {"status": "healthy"}
+
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
