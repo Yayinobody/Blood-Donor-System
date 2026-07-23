@@ -1,0 +1,146 @@
+-- WARNING: This schema is for context only and is not meant to be run.
+-- Table order and constraints may not be valid for execution.
+
+CREATE TABLE public.users (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  role character varying CHECK (role::text = ANY (ARRAY['donor'::character varying, 'seeker'::character varying, 'admin'::character varying]::text[])),
+  full_name character varying,
+  email character varying NOT NULL UNIQUE,
+  phone character varying UNIQUE,
+  blood_type character varying CHECK (blood_type::text = ANY (ARRAY['A+'::character varying, 'A-'::character varying, 'B+'::character varying, 'B-'::character varying, 'AB+'::character varying, 'AB-'::character varying, 'O+'::character varying, 'O-'::character varying]::text[])),
+  birthdate date,
+  gender character varying,
+  weight_kg numeric,
+  barangay character varying,
+  city character varying,
+  latitude numeric,
+  longitude numeric,
+  availability_status character varying DEFAULT 'available'::character varying CHECK (availability_status::text = ANY (ARRAY['available'::character varying, 'resting'::character varying, 'unavailable'::character varying]::text[])),
+  last_donation_date timestamp without time zone,
+  next_eligible_date timestamp without time zone,
+  is_verified boolean DEFAULT false,
+  verification_method character varying CHECK (verification_method::text = ANY (ARRAY['email'::character varying, 'phone'::character varying, 'id'::character varying]::text[])),
+  verified_at timestamp without time zone,
+  display_id character varying NOT NULL UNIQUE,
+  created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT users_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.requests (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  seeker_name character varying,
+  seeker_email character varying NOT NULL,
+  seeker_phone character varying,
+  blood_type_needed character varying NOT NULL,
+  units_needed integer DEFAULT 1,
+  urgency_level character varying CHECK (urgency_level::text = ANY (ARRAY['emergency'::character varying, 'within_hours'::character varying, 'within_day'::character varying, 'planning'::character varying]::text[])),
+  hospital_name character varying,
+  notes text,
+  status character varying DEFAULT 'active'::character varying CHECK (status::text = ANY (ARRAY['active'::character varying, 'fulfilled'::character varying, 'cancelled'::character varying, 'expired'::character varying]::text[])),
+  is_verified boolean DEFAULT false,
+  created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  expires_at timestamp without time zone,
+  ip_address inet,
+  user_agent text,
+  CONSTRAINT requests_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.request_matches (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  request_id uuid,
+  donor_id uuid,
+  status character varying DEFAULT 'notified'::character varying CHECK (status::text = ANY (ARRAY['notified'::character varying, 'accepted'::character varying, 'declined'::character varying, 'expired'::character varying, 'contact_revealed'::character varying]::text[])),
+  notified_at timestamp without time zone,
+  responded_at timestamp without time zone,
+  contact_revealed boolean DEFAULT false,
+  revealed_at timestamp without time zone,
+  created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT request_matches_pkey PRIMARY KEY (id),
+  CONSTRAINT request_matches_donor_id_fkey FOREIGN KEY (donor_id) REFERENCES public.users(id),
+  CONSTRAINT request_matches_request_id_fkey FOREIGN KEY (request_id) REFERENCES public.requests(id)
+);
+CREATE TABLE public.blood_banks (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  name character varying NOT NULL,
+  type character varying CHECK (type::text = ANY (ARRAY['hospital'::character varying, 'clinic'::character varying, 'blood_center'::character varying, 'mobile_unit'::character varying]::text[])),
+  address text NOT NULL,
+  barangay character varying,
+  city character varying,
+  latitude numeric,
+  longitude numeric,
+  contact_email character varying,
+  contact_phone character varying,
+  operating_hours jsonb,
+  created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT blood_banks_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.donations (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  donor_id uuid,
+  blood_bank_id uuid,
+  donation_date timestamp without time zone NOT NULL,
+  volume_ml integer DEFAULT 450,
+  status character varying DEFAULT 'completed'::character varying CHECK (status::text = ANY (ARRAY['completed'::character varying, 'deferred'::character varying, 'cancelled'::character varying]::text[])),
+  notes text,
+  created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT donations_pkey PRIMARY KEY (id),
+  CONSTRAINT donations_donor_id_fkey FOREIGN KEY (donor_id) REFERENCES public.users(id),
+  CONSTRAINT donations_blood_bank_id_fkey FOREIGN KEY (blood_bank_id) REFERENCES public.blood_banks(id)
+);
+CREATE TABLE public.verification_submissions (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid,
+  verification_type character varying CHECK (verification_type::text = ANY (ARRAY['light'::character varying, 'strong'::character varying]::text[])),
+  status character varying DEFAULT 'pending'::character varying CHECK (status::text = ANY (ARRAY['pending'::character varying, 'approved'::character varying, 'rejected'::character varying]::text[])),
+  id_document_url text,
+  id_document_type character varying,
+  submitted_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  reviewed_by uuid,
+  reviewed_at timestamp without time zone,
+  rejection_reason text,
+  metadata jsonb,
+  CONSTRAINT verification_submissions_pkey PRIMARY KEY (id),
+  CONSTRAINT verification_submissions_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id),
+  CONSTRAINT verification_submissions_reviewed_by_fkey FOREIGN KEY (reviewed_by) REFERENCES public.users(id)
+);
+CREATE TABLE public.ai_conversations (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid,
+  session_id uuid NOT NULL,
+  query text NOT NULL,
+  response text NOT NULL,
+  query_type character varying CHECK (query_type::text = ANY (ARRAY['public'::character varying, 'personal'::character varying, 'out_of_scope'::character varying]::text[])),
+  context jsonb,
+  created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT ai_conversations_pkey PRIMARY KEY (id),
+  CONSTRAINT ai_conversations_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id)
+);
+CREATE TABLE public.rate_limit_logs (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  identifier character varying NOT NULL,
+  request_type character varying,
+  timestamp timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  blocked boolean DEFAULT false,
+  CONSTRAINT rate_limit_logs_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.reference_content (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  category character varying NOT NULL,
+  title character varying NOT NULL,
+  content text NOT NULL,
+  source character varying CHECK (source::text = ANY (ARRAY['WHO'::character varying, 'Red_Cross'::character varying, 'DOH_Philippines'::character varying]::text[])),
+  tags ARRAY,
+  last_updated timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT reference_content_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.contact_reveal_audit (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  request_id uuid,
+  donor_id uuid,
+  seeker_email character varying,
+  reveal_timestamp timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  ip_address inet,
+  user_agent text,
+  CONSTRAINT contact_reveal_audit_pkey PRIMARY KEY (id),
+  CONSTRAINT contact_reveal_audit_request_id_fkey FOREIGN KEY (request_id) REFERENCES public.requests(id),
+  CONSTRAINT contact_reveal_audit_donor_id_fkey FOREIGN KEY (donor_id) REFERENCES public.users(id)
+);

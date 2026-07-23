@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import emailjs from "@emailjs/browser";
 import { Link } from "react-router-dom";
 import {
   motion,
@@ -499,6 +500,7 @@ export default function LandingPage() {
 
       {/* CTA */}
       <CTASection />
+
     </div>
   );
 }
@@ -1017,7 +1019,7 @@ function MapView({
                           )}
                         </div>
                       </div>
-                      <Link to={`/seeker/request/${donor.display_id.replace("Donor #", "")}`}>
+                      <Link to={`/seeker/request/${donor.id}`}>
                         <Button
                           size="sm"
                           disabled={donor.availability_status !== 'available'}
@@ -1218,7 +1220,7 @@ function DonorCard({ donor }: { donor: AnonymizedDonor }) {
             </div>
           </div>
         </div>
-        <Link to={`/seeker/request/${donor.display_id.replace("Donor #", "")}`}>
+        <Link to={`/seeker/request/${donor.id}`}>
           <Button
             size="sm"
             disabled={!isAvailable}
