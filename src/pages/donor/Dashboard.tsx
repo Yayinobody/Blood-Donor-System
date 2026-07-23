@@ -1,4 +1,4 @@
-import { useState, type ElementType } from "react";
+import { useState, useEffect, type ElementType } from "react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
@@ -28,8 +28,10 @@ import {
 } from "recharts";
 import toast from "react-hot-toast";
 import type { RequestMatch, UrgencyLevel } from "@/types";
+import { useAuth } from "@/context/AuthContext";
+import { supabase } from "@/utils/supabaseClient";
 
-// Mock incoming requests
+// Mock incoming requests fallback
 const MOCK_REQUESTS: (RequestMatch & {
   blood_type_needed: string;
   hospital_area: string;
@@ -50,19 +52,6 @@ const MOCK_REQUESTS: (RequestMatch & {
     urgency: "within_hours",
     units: 2,
   },
-  {
-    id: "match-002",
-    request_id: "req-002",
-    donor_id: "donor-482",
-    status: "notified",
-    distance_km: 3.5,
-    notified_at: "2026-07-21T09:30:00Z",
-    blood_type_needed: "O-",
-    hospital_area: "Quezon City",
-    hospital_name: "St. Luke's Medical Center",
-    urgency: "within_day",
-    units: 1,
-  },
 ];
 
 // Mock stats
@@ -79,13 +68,60 @@ const container = {
 const item = { hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0 } };
 
 export default function DonorDashboard() {
-  const [requests, setRequests] = useState(MOCK_REQUESTS);
+  const { user, profile } = useAuth();
+  const [requests, setRequests] = useState<any[]>(MOCK_REQUESTS);
+
+  useEffect(() => {
+    const fetchMatches = async () => {
+      if (!user) return;
+      try {
+        const { data, error } = await supabase
+          .from("request_matches")
+          .select(`
+            id,
+            request_id,
+            donor_id,
+            status,
+            notified_at,
+            requests:request_id (
+              blood_type_needed,
+              hospital_name,
+              units_needed,
+              urgency_level
+            )
+          `)
+          .eq("donor_id", user.id);
+
+        if (error) throw error;
+
+        if (data && data.length > 0) {
+          const mapped = data.map((m: any) => ({
+            id: m.id,
+            request_id: m.request_id,
+            donor_id: m.donor_id,
+            status: m.status,
+            distance_km: 1.5,
+            notified_at: m.notified_at,
+            blood_type_needed: m.requests?.blood_type_needed || "O+",
+            hospital_area: "Hospital Location",
+            hospital_name: m.requests?.hospital_name || "General Hospital",
+            urgency: m.requests?.urgency_level || "within_day",
+            units: m.requests?.units_needed || 1,
+          }));
+          setRequests(mapped);
+        }
+      } catch (err: any) {
+        console.error("Error fetching donor matches:", err.message);
+      }
+    };
+    fetchMatches();
+  }, [user]);
 
   const handleAccept = (matchId: string) => {
     setRequests((prev) =>
       prev.map((r) => (r.id === matchId ? { ...r, status: "accepted" as const } : r))
     );
-    toast.success("Request accepted! Proceed to verification.");
+    toast.success("Request accepted! Proceed to contact exchange.");
   };
 
   const handleDecline = (matchId: string) => {
@@ -95,24 +131,34 @@ export default function DonorDashboard() {
     toast.success("Request declined.");
   };
 
+  const displayName = profile?.full_name || profile?.display_id || user?.email || "Donor";
+  const displayId = profile?.display_id || "Donor Profile";
+  const bloodType = profile?.blood_type || "O+";
+  const isAvailable = (profile?.availability_status || "available") === "available";
+
+  // Calculate next eligible date formatting
+  const nextEligibleText = profile?.next_eligible_date
+    ? new Date(profile.next_eligible_date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+    : "Eligible Now";
+
   return (
     <motion.div variants={container} initial="hidden" animate="show" className="space-y-6 max-w-6xl mx-auto">
       {/* Welcome header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-dark">
-            Welcome back, <span className="text-primary">Donor #482</span>
+            Welcome back, <span className="text-primary">{displayName}</span>
           </h1>
           <p className="text-gray-500 mt-1 flex items-center gap-2">
-            <Badge variant="success" className="gap-1">
-              <CheckCircle className="h-3 w-3" /> Available
+            <Badge variant={isAvailable ? "success" : "warning"} className="gap-1">
+              <CheckCircle className="h-3 w-3" /> {isAvailable ? "Available" : "Resting"}
             </Badge>
-            Blood type: <span className="font-semibold text-primary">O-</span>
+            ID: <span className="font-medium text-gray-700">{displayId}</span> • Blood type: <span className="font-semibold text-primary">{bloodType}</span>
           </p>
         </div>
         <Link to="/donor/profile">
           <Button variant="outline" className="gap-2">
-            <Settings className="h-4 w-4" /> Manage Availability
+            <Settings className="h-4 w-4" /> Manage Profile
           </Button>
         </Link>
       </div>
@@ -120,9 +166,9 @@ export default function DonorDashboard() {
       {/* Stats cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard icon={Bell} label="Pending Requests" value={requests.filter((r) => r.status === "notified").length} color="warning" />
-        <StatCard icon={CheckCircle} label="Lives Helped" value={3} color="success" />
-        <StatCard icon={Droplets} label="Total Donations" value={4} color="primary" />
-        <StatCard icon={Clock} label="Next Eligible" value="Aug 15" color="blue" />
+        <StatCard icon={CheckCircle} label="Lives Helped" value={1} color="success" />
+        <StatCard icon={Droplets} label="Total Donations" value={1} color="primary" />
+        <StatCard icon={Clock} label="Next Eligible" value={nextEligibleText} color="blue" />
       </div>
 
       {/* Incoming Requests */}

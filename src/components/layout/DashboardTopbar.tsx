@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import {
   Menu,
   Search,
@@ -18,6 +18,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useAuth } from "@/context/AuthContext";
 
 interface TopbarProps {
   onMenuClick: () => void;
@@ -25,6 +26,16 @@ interface TopbarProps {
 
 export default function DashboardTopbar({ onMenuClick }: TopbarProps) {
   const [searchFocused, setSearchFocused] = useState(false);
+  const { user, profile, signOut } = useAuth();
+  const navigate = useNavigate();
+
+  const handleLogout = async () => {
+    await signOut();
+    navigate("/login");
+  };
+
+  const displayName = profile?.full_name || profile?.display_id || user?.email || "Donor";
+  const displayRole = profile?.blood_type ? `Donor (${profile.blood_type})` : "Donor";
 
   return (
     <header className="flex h-16 items-center justify-between border-b border-gray-200 bg-white px-4 lg:px-6">
@@ -58,8 +69,6 @@ export default function DashboardTopbar({ onMenuClick }: TopbarProps) {
 
       {/* Right section */}
       <div className="flex items-center gap-2">
-
-
         {/* User dropdown */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -68,8 +77,8 @@ export default function DashboardTopbar({ onMenuClick }: TopbarProps) {
                 <User className="h-4 w-4 text-primary" />
               </div>
               <div className="hidden md:block text-left">
-                <p className="text-sm font-medium text-dark">John Doe</p>
-                <p className="text-xs text-gray-500">Donor (O-)</p>
+                <p className="text-sm font-medium text-dark">{displayName}</p>
+                <p className="text-xs text-gray-500">{displayRole}</p>
               </div>
               <ChevronDown className="hidden md:block h-4 w-4 text-gray-400" />
             </Button>
@@ -83,12 +92,12 @@ export default function DashboardTopbar({ onMenuClick }: TopbarProps) {
               </Link>
             </DropdownMenuItem>
             <DropdownMenuItem asChild>
-              <Link to="/settings" className="flex items-center gap-2">
+              <Link to="/donor/profile" className="flex items-center gap-2">
                 <Settings className="h-4 w-4" /> Settings
               </Link>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem className="text-error focus:text-error">
+            <DropdownMenuItem onClick={handleLogout} className="text-error focus:text-error cursor-pointer">
               <LogOut className="h-4 w-4 mr-2" /> Log out
             </DropdownMenuItem>
           </DropdownMenuContent>
