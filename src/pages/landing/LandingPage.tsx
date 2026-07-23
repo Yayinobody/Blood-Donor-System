@@ -1096,7 +1096,7 @@ function MapView({
       exit={{ opacity: 0, scale: 0.95 }}
       className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden"
     >
-      <div className="relative" style={{ height: "450px" }}>
+      <div className="relative" style={{ height: "800px" }}>
         <MapContainer
           center={[centerLat, centerLng]}
           zoom={13}
