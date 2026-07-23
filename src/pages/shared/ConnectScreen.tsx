@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -10,51 +10,32 @@ import {
   MapPin,
   ArrowLeft,
   Loader2,
-  BadgeCheck,
+  Droplets,
+  AlertTriangle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import toast from "react-hot-toast";
 import { supabase } from "@/utils/supabaseClient";
-import { useAuth } from "@/context/AuthContext";
 
 type Step = "pending" | "revealed" | "fulfilled";
 
 export default function ConnectScreen() {
   const { matchId } = useParams<{ matchId: string }>();
   const navigate = useNavigate();
-  const { user, profile } = useAuth();
 
-  const [step, setStep] = useState<VerificationStep>("pending");
-  const [otpSent, setOtpSent] = useState(false);
-  const [otp, setOtp] = useState("");
-  const [isVerifying, setIsVerifying] = useState(false);
-
-  // Mock data — in real app, fetch from API
-  const matchData = {
-    id: matchId,
-    donor: {
-      display_id: "Donor #482",
-      real_name: "Juan dela Cruz",
-      email: "juan@example.com",
-      phone: "+63 912 345 6789",
-      blood_type: "O-",
-      verification_level: "strong" as const,
-    },
-    seeker: {
-      email: "maria@example.com",
-      phone: "+63 917 987 6543",
-      blood_type_needed: "O-",
-      hospital: "PGH Blood Bank",
-      hospital_area: "Ermita, Manila",
-      urgency: "within_hours" as const,
-    },
-  };
+  const [step, setStep] = useState<Step>("pending");
+  const [matchData, setMatchData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [revealing, setRevealing] = useState(false);
 
   useEffect(() => {
     const fetchMatch = async () => {
-      if (!matchId) return;
+      if (!matchId) {
+        setLoading(false);
+        return;
+      }
       try {
         // Fetch match + joined request data
         const { data, error } = await supabase
@@ -96,6 +77,7 @@ export default function ConnectScreen() {
   }, [matchId]);
 
   const handleRevealContact = async () => {
+    if (!matchId) return;
     setRevealing(true);
     try {
       const { error } = await supabase
@@ -113,7 +95,12 @@ export default function ConnectScreen() {
       setMatchData((prev: any) => ({ ...prev, contact_revealed: true, status: "contact_revealed" }));
       setStep("revealed");
       toast.success("Verification successful! Contact info revealed.");
-    }, 1500);
+    } catch (err: any) {
+      console.error("Reveal contact error:", err.message);
+      toast.error("Failed to reveal contact information.");
+    } finally {
+      setRevealing(false);
+    }
   };
 
   const handleMarkFulfilled = async () => {
@@ -149,7 +136,7 @@ export default function ConnectScreen() {
     );
   }
 
-  const request = matchData?.requests;
+  const request = Array.isArray(matchData?.requests) ? matchData.requests[0] : matchData?.requests;
 
   return (
     <div className="min-h-[calc(100vh-4rem)] bg-gradient-to-br from-primary/5 to-accent/10 py-12 px-4">

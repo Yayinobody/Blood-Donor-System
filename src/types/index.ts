@@ -57,7 +57,7 @@ export interface BloodBank {
 // --------------------- Donation Request ---------------------
 export type UrgencyLevel = "within_hours" | "within_day" | "planning_ahead";
 export type RequestStatus = "open" | "matched" | "fulfilled" | "cancelled" | "expired";
-export type MatchStatus = "notified" | "accepted" | "declined" | "expired" | "revealed";
+export type MatchStatus = "notified" | "accepted" | "declined" | "expired" | "revealed" | "contact_revealed";
 
 export interface DonationRequest {
   id: string;
@@ -89,6 +89,7 @@ export interface RequestMatch {
 
 // --------------------- Donor Card (anonymized for seekers) ---------------------
 export interface AnonymizedDonor {
+  id?: string;
   display_id: string;
   blood_type: BloodType;
   distance_km: number;
