@@ -11,7 +11,6 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent } from "@/components/ui/card";
 import toast from "react-hot-toast";
 
 export default function SeekerVerify() {
@@ -25,7 +24,6 @@ export default function SeekerVerify() {
   const [isVerifying, setIsVerifying] = useState(false);
 
   const handleSendOTP = () => {
-    setOtpSent(true);
     setStep("email_otp");
     toast.success("Verification code sent to " + email);
   };
@@ -143,7 +141,6 @@ export default function SeekerVerify() {
 
               <button
                 onClick={() => {
-                  setOtpSent(false);
                   setOtp("");
                   setStep("intro");
                 }}

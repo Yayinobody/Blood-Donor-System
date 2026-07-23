@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -8,11 +8,8 @@ import {
   Phone,
   User,
   MapPin,
-  Droplets,
-  Clock,
   ArrowLeft,
   Loader2,
-  AlertTriangle,
   BadgeCheck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -32,7 +29,6 @@ export default function ConnectScreen() {
   const [otpSent, setOtpSent] = useState(false);
   const [otp, setOtp] = useState("");
   const [isVerifying, setIsVerifying] = useState(false);
-  const [showContact, setShowContact] = useState(false);
 
   // Mock data — in real app, fetch from API
   const matchData = {
@@ -69,7 +65,6 @@ export default function ConnectScreen() {
     setTimeout(() => {
       setIsVerifying(false);
       setStep("revealed");
-      setShowContact(true);
       toast.success("Verification successful! Contact info revealed.");
     }, 1500);
   };

@@ -891,26 +891,7 @@ function HeroSearchSection({
   );
 }
 
-// --------------------- Leaflet helpers ---------------------
 
-// Custom colored-dot marker for donors (avoids default Leaflet pin)
-function donorIcon(available: boolean, verified: boolean) {
-  return L.divIcon({
-    className: "custom-donor-marker",
-    html: `
-      <div style="position:relative;width:20px;height:20px;">
-        <div style="
-          width:16px;height:16px;border-radius:50%;
-          background:${available ? "#E63946" : "#9CA3AF"};
-          border:2px solid white;box-shadow:0 1px 4px rgba(0,0,0,0.3);
-        "></div>
-        ${verified ? `<span style="position:absolute;top:-6px;right:-6px;font-size:10px;">✓</span>` : ""}
-      </div>
-    `,
-    iconSize: [20, 20],
-    iconAnchor: [10, 10],
-  });
-}
 
 // Re-centers the map when the user's location updates
 function RecenterMap({ lat, lng }: { lat: number; lng: number }) {
