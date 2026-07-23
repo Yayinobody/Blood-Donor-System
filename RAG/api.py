@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from dotenv import load_dotenv
 from llama_index.core import Settings, VectorStoreIndex, StorageContext
-from llama_index.core.prompts import PromptTemplate          # <-- added
+from llama_index.core.prompts import PromptTemplate
 from llama_index.embeddings.openai import OpenAIEmbedding
 from llama_index.llms.openai import OpenAI
 from llama_index.vector_stores.milvus import MilvusVectorStore
@@ -18,7 +18,7 @@ load_dotenv()
 Settings.embed_model = OpenAIEmbedding(model="text-embedding-3-small")
 Settings.llm = OpenAI(model="gpt-4o-mini")
 
-# ------------------- Custom Prompt Template -------------------
+# ------------------- Custom Prompt Template with Markdown formatting -------------------
 qa_prompt = PromptTemplate(
     """
 You are the AI assistant for AnonBlood.
@@ -38,11 +38,19 @@ If the answer is not found in the provided context, reply:
 
 Do not invent features or procedures.
 Do not answer unrelated questions.
+
+**Formatting instructions:**
+- Structure your answer with clear headings (use `##` for sections).
+- Use **bold** for important terms, dates, or numbers.
+- Use bullet points (`- `) or numbered lists for steps or options.
+- Add blank lines between paragraphs for readability.
+- Keep the tone professional and helpful.
+
 Question:
 {query_str}
 """
 )
-# -------------------------------------------------------------
+# ------------------------------------------------------------------------------------
 
 app = FastAPI(title="AnonBlood AI Assistant API")
 
@@ -78,11 +86,11 @@ async def chat(request: QueryRequest):
         query_engine = index.as_query_engine(
             similarity_top_k=5,
             response_mode="compact",
-            text_qa_template=qa_prompt,          # <-- custom prompt applied
+            text_qa_template=qa_prompt,
         )
-        
+
         response = query_engine.query(request.question)
-        
+
         sources = []
         for node in response.source_nodes:
             sources.append({
@@ -90,12 +98,12 @@ async def chat(request: QueryRequest):
                 "file_name": node.metadata.get("file_name", "Unknown"),
                 "score": round(node.score, 2) if hasattr(node, 'score') else None
             })
-        
+
         return QueryResponse(
             answer=str(response),
             sources=sources
         )
-    
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
