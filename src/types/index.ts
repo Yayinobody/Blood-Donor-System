@@ -108,6 +108,7 @@ export interface AssistantMessage {
   content: string;
   timestamp: Date;
   scope?: "public" | "personal" | "out_of_scope";
+  metadata?: Record<string, any>;
 }
 
 // --------------------- Map ---------------------

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -10,8 +10,7 @@ import {
   MapPin,
   ArrowLeft,
   Loader2,
-  Droplets,
-  AlertTriangle,
+  BadgeCheck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -27,10 +26,31 @@ export default function ConnectScreen() {
   const navigate = useNavigate();
   const { user, profile } = useAuth();
 
-  const [step, setStep] = useState<Step>("pending");
-  const [loading, setLoading] = useState(true);
-  const [revealing, setRevealing] = useState(false);
-  const [matchData, setMatchData] = useState<any>(null);
+  const [step, setStep] = useState<VerificationStep>("pending");
+  const [otpSent, setOtpSent] = useState(false);
+  const [otp, setOtp] = useState("");
+  const [isVerifying, setIsVerifying] = useState(false);
+
+  // Mock data — in real app, fetch from API
+  const matchData = {
+    id: matchId,
+    donor: {
+      display_id: "Donor #482",
+      real_name: "Juan dela Cruz",
+      email: "juan@example.com",
+      phone: "+63 912 345 6789",
+      blood_type: "O-",
+      verification_level: "strong" as const,
+    },
+    seeker: {
+      email: "maria@example.com",
+      phone: "+63 917 987 6543",
+      blood_type_needed: "O-",
+      hospital: "PGH Blood Bank",
+      hospital_area: "Ermita, Manila",
+      urgency: "within_hours" as const,
+    },
+  };
 
   useEffect(() => {
     const fetchMatch = async () => {
@@ -92,69 +112,8 @@ export default function ConnectScreen() {
 
       setMatchData((prev: any) => ({ ...prev, contact_revealed: true, status: "contact_revealed" }));
       setStep("revealed");
-      toast.success("Contact info revealed!");
-
-      // 🔔 Email seeker via Pipedream → Resend
-      const request = matchData?.requests;
-      const donorEmail = user?.email ?? "—";
-
-      console.log("Sending email to:", request?.seeker_email, "from donor:", donorEmail);
-      if (request?.seeker_email) {
-        try {
-          const res = await fetch("https://eon221bta0ofeq0.m.pipedream.net", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              to: request.seeker_email,
-              subject: "🩸 A donor has accepted your blood request!",
-              html: `
-                <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:24px;color:#333;line-height:1.6;">
-                  <div style="background:linear-gradient(135deg,#e53e3e,#c53030);border-radius:12px;padding:32px;text-align:center;margin-bottom:24px;">
-                    <h1 style="color:white;margin:0;font-size:28px;">Donor Match Found!</h1>
-                    <p style="color:rgba(255,255,255,0.9);margin:8px 0 0;font-size:16px;">
-                      A donor has been located for your blood request. Please review the details below and get in touch with them as soon as possible.
-                    </p>
-                  </div>
-
-                  <div style="background:#f8f9fa;border:1px solid #e9ecef;border-radius:8px;padding:20px;margin-bottom:20px;">
-                    <h3 style="color:#2d3748;margin:0 0 12px;font-size:18px;">📋 Request Details</h3>
-                    <p style="margin:6px 0;"><strong>Blood Type Needed:</strong> <span style="color:#e53e3e;font-weight:bold;">${request.blood_type_needed}</span></p>
-                    <p style="margin:6px 0;"><strong>Hospital / Location:</strong> ${request.hospital_name}</p>
-                    <p style="margin:6px 0;"><strong>Urgency:</strong> ${request.urgency_level?.replace(/_/g, " ")}</p>
-                  </div>
-
-                  <div style="background:#ebf8ff;border:1px solid #bee3f8;border-radius:8px;padding:20px;margin-bottom:24px;">
-                    <h3 style="color:#2b6cb0;margin:0 0 12px;font-size:18px;">👤 Donor Contact Info</h3>
-                    <p style="margin:6px 0 16px;"><strong>Email:</strong> <a href="mailto:${donorEmail}" style="color:#3182ce;text-decoration:none;font-weight:500;">${donorEmail}</a></p>
-                    
-                    <div style="text-align:center;">
-                      <a href="mailto:${donorEmail}" style="background-color:#3182ce;color:white;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:bold;display:inline-block;">
-                        📧 Send Email to Donor
-                      </a>
-                    </div>
-                  </div>
-
-                  <hr style="border:0;border-top:1px solid #e2e8f0;margin:24px 0;" />
-                  <p style="color:#718096;font-size:13px;text-align:center;margin:0;">
-                    Need help? Reply directly to this email for support.
-                  </p>
-                </div>
-              `,
-            }),
-          });
-          console.log("Pipedream response:", res.status);
-          toast.success("Seeker notified by email! ✅");
-        } catch (emailErr: any) {
-          console.error("Email error:", emailErr);
-        }
-      }
-
-    } catch (err: any) {
-      console.error("Reveal error:", err.message);
-      toast.error("Failed to reveal contact. Please try again.");
-    } finally {
-      setRevealing(false);
-    }
+      toast.success("Verification successful! Contact info revealed.");
+    }, 1500);
   };
 
   const handleMarkFulfilled = async () => {

@@ -66,6 +66,16 @@ const MOCK_DONORS: AnonymizedDonor[] = [
     last_active: "2026-07-21T08:15:00Z",
   },
   {
+    display_id: "Donor #202",
+    blood_type: "O+",
+    distance_km: 0.6,
+    availability_status: "available",
+    verification_badge: true,
+    fuzzed_lat: 9.3078,
+    fuzzed_lng: 123.3050,
+    last_active: "2026-07-21T08:15:00Z",
+  },
+  {
     display_id: "Donor #102",
     blood_type: "A+",
     distance_km: 0.9,
@@ -96,6 +106,26 @@ const MOCK_DONORS: AnonymizedDonor[] = [
     last_active: "2026-07-21T09:03:00Z",
   },
   {
+    display_id: "Donor #404",
+    blood_type: "O-",
+    distance_km: 1.5,
+    availability_status: "resting",
+    verification_badge: true,
+    fuzzed_lat: 9.3168,
+    fuzzed_lng: 123.3048,
+    last_active: "2026-07-21T09:03:00Z",
+  },
+  {
+    display_id: "Donor #304",
+    blood_type: "O-",
+    distance_km: 1.5,
+    availability_status: "resting",
+    verification_badge: true,
+    fuzzed_lat: 9.3168,
+    fuzzed_lng: 123.3048,
+    last_active: "2026-07-21T09:03:00Z",
+  },
+  {
     display_id: "Donor #105",
     blood_type: "AB+",
     distance_km: 1.8,
@@ -107,6 +137,27 @@ const MOCK_DONORS: AnonymizedDonor[] = [
   },
   {
     display_id: "Donor #106",
+    blood_type: "A-",
+    distance_km: 2.0,
+    availability_status: "available",
+    verification_badge: true,
+    fuzzed_lat: 9.3205,
+    fuzzed_lng: 123.3060,
+    last_active: "2026-07-21T06:55:00Z",
+  },
+
+  {
+    display_id: "Donor #206",
+    blood_type: "A-",
+    distance_km: 2.0,
+    availability_status: "available",
+    verification_badge: true,
+    fuzzed_lat: 9.3205,
+    fuzzed_lng: 123.3060,
+    last_active: "2026-07-21T06:55:00Z",
+  },
+  {
+    display_id: "Donor #206",
     blood_type: "A-",
     distance_km: 2.0,
     availability_status: "available",
@@ -167,6 +218,26 @@ const MOCK_DONORS: AnonymizedDonor[] = [
   },
   {
     display_id: "Donor #112",
+    blood_type: "B+",
+    distance_km: 3.8,
+    availability_status: "resting",
+    verification_badge: false,
+    fuzzed_lat: 9.2962,
+    fuzzed_lng: 123.3058,
+    last_active: "2026-07-21T05:48:00Z",
+  },
+  {
+    display_id: "Donor #172",
+    blood_type: "B+",
+    distance_km: 3.8,
+    availability_status: "resting",
+    verification_badge: false,
+    fuzzed_lat: 9.2962,
+    fuzzed_lng: 123.3058,
+    last_active: "2026-07-21T05:48:00Z",
+  },
+  {
+    display_id: "Donor #162",
     blood_type: "B+",
     distance_km: 3.8,
     availability_status: "resting",
@@ -822,26 +893,7 @@ function HeroSearchSection({
   );
 }
 
-// --------------------- Leaflet helpers ---------------------
 
-// Custom colored-dot marker for donors (avoids default Leaflet pin)
-function donorIcon(available: boolean, verified: boolean) {
-  return L.divIcon({
-    className: "custom-donor-marker",
-    html: `
-      <div style="position:relative;width:20px;height:20px;">
-        <div style="
-          width:16px;height:16px;border-radius:50%;
-          background:${available ? "#E63946" : "#9CA3AF"};
-          border:2px solid white;box-shadow:0 1px 4px rgba(0,0,0,0.3);
-        "></div>
-        ${verified ? `<span style="position:absolute;top:-6px;right:-6px;font-size:10px;">✓</span>` : ""}
-      </div>
-    `,
-    iconSize: [20, 20],
-    iconAnchor: [10, 10],
-  });
-}
 
 // Re-centers the map when the user's location updates
 function RecenterMap({ lat, lng }: { lat: number; lng: number }) {
@@ -1046,7 +1098,7 @@ function MapView({
       exit={{ opacity: 0, scale: 0.95 }}
       className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden"
     >
-      <div className="relative" style={{ height: "450px" }}>
+      <div className="relative" style={{ height: "800px" }}>
         <MapContainer
           center={[centerLat, centerLng]}
           zoom={13}

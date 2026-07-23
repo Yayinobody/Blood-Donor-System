@@ -9,8 +9,6 @@ import {
   AlertTriangle,
   Mail,
   Phone,
-  Loader2,
-  ArrowRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -193,7 +191,6 @@ function LightVerification() {
 // --------------------- Strong Verification ---------------------
 function StrongVerification() {
   const [file, setFile] = useState<File | null>(null);
-  const [submitted, setSubmitted] = useState(false);
   const [status, setStatus] = useState<"idle" | "reviewing" | "approved">("idle");
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -204,10 +201,9 @@ function StrongVerification() {
 
   const handleSubmit = () => {
     if (!file) {
-      toast.error("Please upload a valid ID");
+      toast.error("Please upload an ID document");
       return;
     }
-    setSubmitted(true);
     setStatus("reviewing");
     toast.success("ID submitted for review. This usually takes 24-48 hours.");
   };

@@ -41,8 +41,9 @@ interface ChatResponse {
 }
 
 // Default API Base URL
-const DEFAULT_API_BASE_URL = "http://localhost:8000";
+// const DEFAULT_API_BASE_URL = "http://localhost:8000";
 
+const DEFAULT_API_BASE_URL = "https://blood-donor-system-4lpn.onrender.com";
 export function AIChatWidget({
   isOpen,
   onOpenChange,

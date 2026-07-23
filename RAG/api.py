@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from dotenv import load_dotenv
 from llama_index.core import Settings, VectorStoreIndex, StorageContext
+from llama_index.core.prompts import PromptTemplate          # <-- added
 from llama_index.embeddings.openai import OpenAIEmbedding
 from llama_index.llms.openai import OpenAI
 from llama_index.vector_stores.milvus import MilvusVectorStore
@@ -17,12 +18,38 @@ load_dotenv()
 Settings.embed_model = OpenAIEmbedding(model="text-embedding-3-small")
 Settings.llm = OpenAI(model="gpt-4o-mini")
 
+# ------------------- Custom Prompt Template -------------------
+qa_prompt = PromptTemplate(
+    """
+You are the AI assistant for AnonBlood.
+
+You answer questions about:
+- Blood donation
+- Blood compatibility
+- Blood donation eligibility
+- How to use the AnonBlood platform
+- Privacy rules
+- Donor and seeker workflows
+
+Use only the retrieved context to answer.
+
+If the answer is not found in the provided context, reply:
+"I don't have enough information in my knowledge base to answer that."
+
+Do not invent features or procedures.
+Do not answer unrelated questions.
+Question:
+{query_str}
+"""
+)
+# -------------------------------------------------------------
+
 app = FastAPI(title="AnonBlood AI Assistant API")
 
 # Enable CORS for your frontend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],  # Your Next.js frontend
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -49,8 +76,9 @@ async def chat(request: QueryRequest):
         vector_store = get_vector_store(overwrite=False)
         index = VectorStoreIndex.from_vector_store(vector_store)
         query_engine = index.as_query_engine(
-            similarity_top_k=5, 
-            response_mode="compact"
+            similarity_top_k=5,
+            response_mode="compact",
+            text_qa_template=qa_prompt,          # <-- custom prompt applied
         )
         
         response = query_engine.query(request.question)
