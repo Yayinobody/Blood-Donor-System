@@ -8,7 +8,6 @@ import {
   Mail,
   CheckCircle,
   Sparkles,
-  Shield,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,7 +27,7 @@ export default function ForgotPasswordPage() {
     formState: { errors },
   } = useForm<ForgotPasswordForm>();
 
-  const onSubmit = async (data: ForgotPasswordForm) => {
+  const onSubmit = async (_data: ForgotPasswordForm) => {
     setIsLoading(true);
     setTimeout(() => {
       setIsLoading(false);

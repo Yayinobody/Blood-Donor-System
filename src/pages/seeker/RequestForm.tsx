@@ -4,7 +4,6 @@ import { useForm } from "react-hook-form";
 import { motion } from "framer-motion";
 import {
   ArrowLeft,
-  Droplets,
   Shield,
   MapPin,
   Clock,

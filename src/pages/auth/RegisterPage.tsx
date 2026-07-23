@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import {
   Eye,
   EyeOff,
@@ -10,13 +10,11 @@ import {
   User,
   Mail,
   Lock,
-  Shield,
-  Check,
-  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import toast from "react-hot-toast";
+import { useAuth } from "@/context/AuthContext";
 
 interface RegisterFormValues {
   fullName: string;
@@ -32,7 +30,28 @@ export default function RegisterPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [selectedBloodType, setSelectedBloodType] = useState("");
+  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   const navigate = useNavigate();
+  const { signUp } = useAuth();
+
+  // Capture geolocation on mount
+  useEffect(() => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          // Fuzz by ~500m for privacy
+          const fuzz = () => (Math.random() - 0.5) * 0.009;
+          setUserLocation({
+            lat: pos.coords.latitude + fuzz(),
+            lng: pos.coords.longitude + fuzz(),
+          });
+        },
+        () => {
+          console.warn('Geolocation unavailable — registering without location.');
+        }
+      );
+    }
+  }, []);
 
   const {
     register,
@@ -57,13 +76,32 @@ export default function RegisterPage() {
   const strengthColors = ["bg-error", "bg-warning", "bg-warning", "bg-success"];
   const strengthLabels = ["Weak", "Fair", "Good", "Strong"];
 
-  const onSubmit = async (_data: RegisterFormValues) => {
+  const onSubmit = async (data: RegisterFormValues) => {
+    if (!selectedBloodType) {
+      toast.error('Please select your blood type.');
+      return;
+    }
+    if (data.password !== data.confirmPassword) {
+      toast.error('Passwords do not match.');
+      return;
+    }
     setIsLoading(true);
-    setTimeout(() => {
+    try {
+      await signUp(
+        data.email,
+        data.password,
+        data.fullName,
+        selectedBloodType,
+        userLocation?.lat ?? null,
+        userLocation?.lng ?? null
+      );
+      toast.success('Account created! Welcome to AnonBlood.');
+      navigate('/dashboard');
+    } catch (err: any) {
+      toast.error(err.message || 'Registration failed. Please try again.');
+    } finally {
       setIsLoading(false);
-      toast.success("Account created successfully!");
-      navigate("/dashboard");
-    }, 1500);
+    }
   };
 
   return (

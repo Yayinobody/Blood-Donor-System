@@ -27,6 +27,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import toast from "react-hot-toast";
+import { supabase } from "@/utils/supabaseClient";
 import type {
   AnonymizedDonor,
   BloodType,
@@ -385,12 +386,70 @@ export default function LandingPage() {
     getLocation();
   }, []);
 
+  // Fetch real registered donors from Supabase
+  const [dbDonors, setDbDonors] = useState<AnonymizedDonor[]>([]);
+
+  useEffect(() => {
+    const fetchRealDonors = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("users")
+          .select("*")
+          .eq("role", "donor");
+
+        if (error) throw error;
+
+        if (data && data.length > 0) {
+          const mapped: AnonymizedDonor[] = data.map((u, idx) => {
+            const donorLat = Number(u.latitude) || (9.3075 + (idx * 0.003));
+            const donorLng = Number(u.longitude) || (123.3050 + (idx * 0.003));
+
+            let dist = 1.0;
+            if (userLocation) {
+              const R = 6371; // km
+              const dLat = ((donorLat - userLocation.lat) * Math.PI) / 180;
+              const dLng = ((donorLng - userLocation.lng) * Math.PI) / 180;
+              const a =
+                Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                Math.cos((userLocation.lat * Math.PI) / 180) *
+                  Math.cos((donorLat * Math.PI) / 180) *
+                  Math.sin(dLng / 2) *
+                  Math.sin(dLng / 2);
+              const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+              dist = Math.round(R * c * 10) / 10;
+            }
+
+            return {
+              id: u.id,
+              display_id: u.display_id || `Donor #${u.id.slice(0, 4)}`,
+              blood_type: (u.blood_type || "O+") as BloodType,
+              distance_km: dist,
+              availability_status: (u.availability_status || "available") as any,
+              verification_badge: u.is_verified || false,
+              fuzzed_lat: donorLat,
+              fuzzed_lng: donorLng,
+              last_active: u.created_at || new Date().toISOString(),
+            };
+          });
+          setDbDonors(mapped);
+        }
+      } catch (err: any) {
+        console.error("Error fetching real donors for map:", err.message);
+      }
+    };
+
+    fetchRealDonors();
+  }, [userLocation]);
+
+  // Combine real database donors with mock donors
+  const allDonors = dbDonors.length > 0 ? [...dbDonors, ...MOCK_DONORS] : MOCK_DONORS;
+
   // Filter donors by blood type compatibility
   const compatibleTypes = selectedBloodType
     ? COMPATIBLE_DONORS[selectedBloodType]
     : BLOOD_TYPES;
 
-  const filteredDonors = MOCK_DONORS.filter(
+  const filteredDonors = allDonors.filter(
     (d) =>
       compatibleTypes.includes(d.blood_type) &&
       d.distance_km <= radiusKm &&
@@ -667,14 +726,14 @@ function HeroSearchSection({
                     size="sm"
                     variant="outline"
                     onClick={() => {
-                      toast.info('Please enable location in your browser settings and refresh the page.');
+                      toast('Please enable location in your browser settings and refresh the page.');
                       // Open browser settings or show instructions
                       if (navigator.userAgent.includes('Chrome')) {
-                        toast.info('Chrome: Click the lock icon in the address bar → Site settings → Location → Allow');
+                        toast('Chrome: Click the lock icon in the address bar → Site settings → Location → Allow');
                       } else if (navigator.userAgent.includes('Firefox')) {
-                        toast.info('Firefox: Click the shield icon → Clear cookies and site data → Reload');
+                        toast('Firefox: Click the shield icon → Clear cookies and site data → Reload');
                       } else if (navigator.userAgent.includes('Safari')) {
-                        toast.info('Safari: Safari → Preferences → Websites → Location → Allow');
+                        toast('Safari: Safari → Preferences → Websites → Location → Allow');
                       }
                     }}
                   >
@@ -838,19 +897,16 @@ function MapView({
     lat,
     lng,
     donors: donorGroup,
-    centerLat,
-    centerLng
   }: {
     lat: number;
     lng: number;
     donors: AnonymizedDonor[];
-    centerLat: number;
-    centerLng: number;
+    centerLat?: number;
+    centerLng?: number;
   }) {
     const count = donorGroup.length;
     const hasAvailable = donorGroup.some(d => d.availability_status === 'available');
     const hasVerified = donorGroup.some(d => d.verification_badge);
-    const avgDistance = donorGroup.reduce((sum, d) => sum + d.distance_km, 0) / count;
 
     // Fixed geographic radius of 300 meters (0.3km)
     const radiusMeters = 300;
@@ -916,7 +972,6 @@ function MapView({
                 ` : ''}
               </div>
             `,
-            className: "radius-marker",
             iconSize: [50, 50],
             iconAnchor: [25, 25],
           })}

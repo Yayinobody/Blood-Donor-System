@@ -24,7 +24,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import toast from "react-hot-toast";
 import type { AvailabilityStatus, BloodType } from "@/types";
-import { BLOOD_TYPES } from "@/types";
 
 export default function DonorProfile() {
   const [editing, setEditing] = useState(false);

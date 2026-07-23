@@ -6,13 +6,11 @@ import {
   Clock,
   Shield,
   Mail,
-  ArrowRight,
   Home,
   Search,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import toast from "react-hot-toast";
 
 interface ConfirmationState {
   donorId: string;

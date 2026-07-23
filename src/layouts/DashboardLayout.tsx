@@ -2,7 +2,6 @@ import { useState } from "react";
 import { Outlet } from "react-router-dom";
 import DashboardSidebar from "@/components/layout/DashboardSidebar";
 import DashboardTopbar from "@/components/layout/DashboardTopbar";
-import { cn } from "@/lib/utils";
 import { AIChatProvider } from "@/context/AIChatContext";
 
 export default function DashboardLayout() {

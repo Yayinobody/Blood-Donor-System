@@ -1,15 +1,13 @@
 import { useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useForm } from "react-hook-form";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import {
   Eye,
   EyeOff,
   Droplets,
   Lock,
   ArrowRight,
-  Shield,
-  CheckCircle,
   AlertTriangle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -51,7 +49,7 @@ export default function ResetPasswordPage() {
   const strengthColors = ["bg-error", "bg-warning", "bg-warning", "bg-success"];
   const strengthLabels = ["Weak", "Fair", "Good", "Strong"];
 
-  const onSubmit = async (data: ResetPasswordForm) => {
+  const onSubmit = async (_data: ResetPasswordForm) => {
     if (!token) {
       toast.error("Invalid or expired reset token");
       return;
