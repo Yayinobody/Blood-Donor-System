@@ -43,6 +43,13 @@ def ingest():
             doc.metadata["source"] = "DOH"
         elif "who" in path:
             doc.metadata["source"] = "WHO"
+        elif "anonblood" in path:
+            doc.metadata["source"] = "AnonBlood Documentation"
+
+        else:
+            doc.metadata["source"] = "Unknown"
+
+        doc.metadata["file_name"] = os.path.basename(doc.metadata["file_path"])
 
     vector_store = get_vector_store(overwrite=True)
     storage_context = StorageContext.from_defaults(vector_store=vector_store)
