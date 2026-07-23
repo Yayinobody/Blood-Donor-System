@@ -30,9 +30,6 @@ You answer questions about:
 - Privacy rules
 - Donor and seeker workflows
 
-Use only the retrieved context to answer.
-If the answer is not found in the provided context, reply:
-"I don't have enough information in my knowledge base to answer that."
 Do not invent features or procedures.
 Do not answer unrelated questions.
 
