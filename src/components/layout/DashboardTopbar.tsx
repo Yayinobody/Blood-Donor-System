@@ -3,7 +3,6 @@ import { Link } from "react-router-dom";
 import {
   Menu,
   Search,
-  Bell,
   Settings,
   User,
   LogOut,

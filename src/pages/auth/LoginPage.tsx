@@ -1,11 +1,12 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { Eye, EyeOff, Droplets, ArrowRight, Shield, Mail } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import toast from "react-hot-toast";
+import { useAuth } from "@/context/AuthContext";
 
 interface LoginFormValues {
   email: string;
@@ -16,6 +17,7 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
+  const { signIn } = useAuth();
 
   const {
     register,
@@ -23,14 +25,17 @@ export default function LoginPage() {
     formState: { errors },
   } = useForm<LoginFormValues>();
 
-  const onSubmit = async (_data: LoginFormValues) => {
+  const onSubmit = async (data: LoginFormValues) => {
     setIsLoading(true);
-    // Simulate API call
-    setTimeout(() => {
-      setIsLoading(false);
+    try {
+      await signIn(data.email, data.password);
       toast.success("Welcome back!");
       navigate("/dashboard");
-    }, 1500);
+    } catch (err: any) {
+      toast.error(err.message || "Invalid email or password.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (

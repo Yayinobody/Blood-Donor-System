@@ -5,16 +5,13 @@ import {
   Shield,
   CheckCircle,
   Mail,
-  Phone,
   Loader2,
   ArrowRight,
-  AlertTriangle,
   Lock,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import toast from "react-hot-toast";
 
 export default function SeekerVerify() {
@@ -24,7 +21,6 @@ export default function SeekerVerify() {
   const email = searchParams.get("email") || "your email";
 
   const [step, setStep] = useState<"intro" | "email_otp" | "verified">("intro");
-  const [otpSent, setOtpSent] = useState(false);
   const [otp, setOtp] = useState("");
   const [isVerifying, setIsVerifying] = useState(false);
 

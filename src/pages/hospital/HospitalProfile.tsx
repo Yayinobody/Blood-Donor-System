@@ -6,10 +6,8 @@ import {
   Phone,
   Mail,
   Clock,
-  Shield,
   Edit,
   Save,
-  Users,
   Droplets,
   CheckCircle,
 } from "lucide-react";
