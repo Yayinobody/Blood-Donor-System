@@ -34,13 +34,11 @@ export default function DonorRequests() {
         const { data, error } = await supabase
           .from("requests")
           .select("*")
+          .eq("status", "active")
           .order("created_at", { ascending: false });
 
         if (error) throw error;
-
-        if (data) {
-          setRequests(data);
-        }
+        if (data) setRequests(data);
       } catch (err: any) {
         console.error("Error fetching requests:", err.message);
       } finally {
@@ -122,7 +120,7 @@ export default function DonorRequests() {
                       </p>
                       <div className="flex items-center gap-4 mt-3 text-sm text-gray-500">
                         <span className="flex items-center gap-1">
-                          <MapPin className="h-4 w-4" /> {req.hospital_address || "Nearby Hospital"}
+                          <MapPin className="h-4 w-4" /> {req.hospital_name || "Nearby Hospital"}
                         </span>
                         <span className="flex items-center gap-1">
                           <Clock className="h-4 w-4" /> {new Date(req.created_at || Date.now()).toLocaleDateString()}

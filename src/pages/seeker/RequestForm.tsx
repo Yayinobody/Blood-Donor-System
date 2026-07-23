@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { motion } from "framer-motion";
@@ -19,6 +19,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import toast from "react-hot-toast";
 import type { BloodType, UrgencyLevel } from "@/types";
 import { BLOOD_TYPES } from "@/types";
+import { supabase } from "@/utils/supabaseClient";
 
 interface SeekerRequestFormValues {
   seeker_email: string;
@@ -26,24 +27,29 @@ interface SeekerRequestFormValues {
   blood_type_needed: BloodType | "";
   urgency: UrgencyLevel;
   hospital_name: string;
-  hospital_area: string;
   units_needed: number;
-  note: string;
+  notes: string;
 }
-
-// Mock donor data (in real app, fetched from API)
-const MOCK_DONOR = {
-  display_id: "Donor #482",
-  blood_type: "O-",
-  distance_km: 1.2,
-  verification_badge: true,
-  availability_status: "available" as const,
-};
 
 export default function SeekerRequestForm() {
   const { donorId } = useParams<{ donorId: string }>();
   const navigate = useNavigate();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [donorInfo, setDonorInfo] = useState<any>(null);
+
+  // Fetch real donor info from Supabase
+  useEffect(() => {
+    const fetchDonor = async () => {
+      if (!donorId) return;
+      const { data } = await supabase
+        .from("users")
+        .select("id, display_id, blood_type, is_verified, availability_status")
+        .eq("id", donorId)
+        .single();
+      if (data) setDonorInfo(data);
+    };
+    fetchDonor();
+  }, [donorId]);
 
   const {
     register,
@@ -64,12 +70,43 @@ export default function SeekerRequestForm() {
       toast.error("Please select a blood type needed");
       return;
     }
+    if (!donorId) {
+      toast.error("Donor not found.");
+      return;
+    }
 
     setIsSubmitting(true);
+    try {
+      // 1. Insert into public.requests (no donor_id column in schema)
+      const { data: requestData, error: requestError } = await supabase
+        .from("requests")
+        .insert({
+          seeker_email: data.seeker_email,
+          seeker_phone: data.seeker_phone || null,
+          blood_type_needed: data.blood_type_needed,
+          urgency_level: data.urgency,
+          hospital_name: data.hospital_name,
+          units_needed: data.units_needed,
+          notes: data.notes || null,
+          status: "active",
+        })
+        .select()
+        .single();
 
-    // Simulate API call
-    setTimeout(() => {
-      setIsSubmitting(false);
+      if (requestError) throw requestError;
+
+      // 2. Create a match record linking this request to the chosen donor
+      const { error: matchError } = await supabase
+        .from("request_matches")
+        .insert({
+          request_id: requestData.id,
+          donor_id: donorId,
+          status: "notified",
+          notified_at: new Date().toISOString(),
+        });
+
+      if (matchError) throw matchError;
+
       toast.success("Request sent! The donor will be notified.");
       navigate("/seeker/confirmation", {
         state: {
@@ -77,10 +114,18 @@ export default function SeekerRequestForm() {
           bloodType: data.blood_type_needed,
           hospital: data.hospital_name,
           email: data.seeker_email,
+          requestId: requestData.id,
         },
       });
-    }, 1500);
+    } catch (err: any) {
+      console.error("Error submitting request:", err.message);
+      toast.error(err.message || "Failed to send request. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
+
+  const donor = donorInfo || { display_id: `Donor #${donorId?.slice(0,6) ?? "???"}`, blood_type: "?", is_verified: false, availability_status: "available" };
 
   return (
     <div className="min-h-[calc(100vh-4rem)] bg-gradient-to-br from-primary/5 to-accent/10 py-12 px-4">
@@ -102,12 +147,12 @@ export default function SeekerRequestForm() {
           <CardContent className="p-5">
             <div className="flex items-center gap-3">
               <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center font-bold text-primary">
-                {MOCK_DONOR.blood_type}
+                {donor.blood_type}
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <span className="font-semibold text-dark">{MOCK_DONOR.display_id}</span>
-                  {MOCK_DONOR.verification_badge && (
+                  <span className="font-semibold text-dark">{donor.display_id}</span>
+                  {donor.is_verified && (
                     <Badge variant="success" className="gap-1 text-xs">
                       <BadgeCheck className="h-3 w-3" /> Verified
                     </Badge>
@@ -115,7 +160,7 @@ export default function SeekerRequestForm() {
                 </div>
                 <p className="text-sm text-gray-500">
                   <MapPin className="h-3 w-3 inline mr-1" />
-                  {MOCK_DONOR.distance_km.toFixed(1)} km away • Available now
+                  Nearby • {donor.availability_status === "available" ? "Available now" : "Currently resting"}
                 </p>
               </div>
             </div>
@@ -178,7 +223,7 @@ export default function SeekerRequestForm() {
                 {[
                   { value: "within_hours" as UrgencyLevel, label: "Within Hours", icon: AlertTriangle },
                   { value: "within_day" as UrgencyLevel, label: "Within a Day", icon: Clock },
-                  { value: "planning_ahead" as UrgencyLevel, label: "Planning Ahead", icon: Clock },
+                  { value: "planning" as UrgencyLevel, label: "Planning Ahead", icon: Clock },
                 ].map((opt) => (
                   <label
                     key={opt.value}
@@ -235,31 +280,17 @@ export default function SeekerRequestForm() {
             </div>
 
             {/* Hospital / Facility */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Hospital / Facility *
-                </label>
-                <Input
-                  placeholder="Hospital name"
-                  {...register("hospital_name", { required: "Hospital name is required" })}
-                />
-                {errors.hospital_name && (
-                  <p className="text-sm text-error mt-1">{errors.hospital_name.message}</p>
-                )}
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Area / City *
-                </label>
-                <Input
-                  placeholder="e.g. Manila, Quezon City"
-                  {...register("hospital_area", { required: "Area is required" })}
-                />
-                {errors.hospital_area && (
-                  <p className="text-sm text-error mt-1">{errors.hospital_area.message}</p>
-                )}
-              </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Hospital / Facility name *
+              </label>
+              <Input
+                placeholder="e.g. Philippine General Hospital, Manila"
+                {...register("hospital_name", { required: "Hospital name is required" })}
+              />
+              {errors.hospital_name && (
+                <p className="text-sm text-error mt-1">{errors.hospital_name.message}</p>
+              )}
             </div>
 
             {/* Units needed */}
@@ -275,16 +306,16 @@ export default function SeekerRequestForm() {
               />
             </div>
 
-            {/* Note */}
+            {/* Notes */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Additional note (optional)
+                Additional notes (optional)
               </label>
               <textarea
                 rows={3}
                 placeholder="Any additional details..."
                 className="w-full rounded-lg border border-input bg-white px-3 py-2 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary resize-none"
-                {...register("note")}
+                {...register("notes")}
               />
             </div>
 

@@ -87,15 +87,20 @@ export default function DonorDashboard() {
               blood_type_needed,
               hospital_name,
               units_needed,
-              urgency_level
+              urgency_level,
+              status
             )
           `)
-          .eq("donor_id", user.id);
+          .eq("donor_id", user.id)
+          .in("status", ["notified", "accepted", "contact_revealed"]);
 
         if (error) throw error;
 
-        if (data && data.length > 0) {
-          const mapped = data.map((m: any) => ({
+        if (data) {
+          // Only show matches where the blood request itself is still 'active'
+          const activeMatches = data.filter((m: any) => m.requests?.status === "active");
+          
+          const mapped = activeMatches.map((m: any) => ({
             id: m.id,
             request_id: m.request_id,
             donor_id: m.donor_id,
@@ -109,6 +114,8 @@ export default function DonorDashboard() {
             units: m.requests?.units_needed || 1,
           }));
           setRequests(mapped);
+        } else {
+          setRequests([]);
         }
       } catch (err: any) {
         console.error("Error fetching donor matches:", err.message);
@@ -149,12 +156,12 @@ export default function DonorDashboard() {
           <h1 className="text-2xl font-bold text-dark">
             Welcome back, <span className="text-primary">{displayName}</span>
           </h1>
-          <p className="text-gray-500 mt-1 flex items-center gap-2">
+          <div className="text-gray-500 mt-1 flex items-center gap-2">
             <Badge variant={isAvailable ? "success" : "warning"} className="gap-1">
               <CheckCircle className="h-3 w-3" /> {isAvailable ? "Available" : "Resting"}
             </Badge>
             ID: <span className="font-medium text-gray-700">{displayId}</span> • Blood type: <span className="font-semibold text-primary">{bloodType}</span>
-          </p>
+          </div>
         </div>
         <Link to="/donor/profile">
           <Button variant="outline" className="gap-2">
@@ -183,17 +190,45 @@ export default function DonorDashboard() {
           )}
         </div>
 
-        {requests.length === 0 ? (
+        {requests.filter((r) => r.status === "notified").length === 0 ? (
           <Card>
-            <CardContent className="p-8 text-center text-gray-500">
-              <Bell className="h-12 w-12 mx-auto mb-3 text-gray-300" />
-              <p>No incoming requests right now.</p>
-              <p className="text-sm">When someone needs your blood type, you'll be notified here.</p>
+            <CardContent className="p-6 text-center text-gray-500">
+              <Bell className="h-10 w-10 mx-auto mb-2 text-gray-300" />
+              <p className="text-sm">No new incoming requests right now.</p>
             </CardContent>
           </Card>
         ) : (
           <div className="space-y-4">
-            {requests.map((req) => (
+            {requests.filter((r) => r.status === "notified").map((req) => (
+              <motion.div key={req.id} variants={item}>
+                <RequestCard
+                  request={req}
+                  onAccept={() => handleAccept(req.id)}
+                  onDecline={() => handleDecline(req.id)}
+                />
+              </motion.div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Active Connections */}
+      <div>
+        <div className="flex items-center gap-2 mb-4">
+          <Shield className="h-5 w-5 text-success" />
+          <h2 className="text-lg font-semibold text-dark">Active Connections</h2>
+        </div>
+
+        {requests.filter((r) => ["accepted", "contact_revealed"].includes(r.status)).length === 0 ? (
+          <Card>
+            <CardContent className="p-6 text-center text-gray-500">
+              <Shield className="h-10 w-10 mx-auto mb-2 text-gray-300" />
+              <p className="text-sm">No active donation connections right now.</p>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="space-y-4">
+            {requests.filter((r) => ["accepted", "contact_revealed"].includes(r.status)).map((req) => (
               <motion.div key={req.id} variants={item}>
                 <RequestCard
                   request={req}
@@ -275,6 +310,7 @@ function RequestCard({
 }) {
   const isNotified = request.status === "notified";
   const isAccepted = request.status === "accepted";
+  const isRevealed = request.status === "contact_revealed";
   const isDeclined = request.status === "declined";
 
   return (
@@ -296,6 +332,7 @@ function RequestCard({
                 {request.urgency === "within_hours" ? "Urgent" : "Within a Day"}
               </Badge>
               {isAccepted && <Badge variant="success">Accepted</Badge>}
+              {isRevealed && <Badge variant="success">Contact Exchanged</Badge>}
               {isDeclined && <Badge variant="secondary">Declined</Badge>}
             </div>
             <p className="text-sm text-gray-600">
@@ -335,11 +372,11 @@ function RequestCard({
             </div>
           )}
 
-          {isAccepted && (
+          {(isAccepted || isRevealed) && (
             <div className="flex items-center">
               <Link to={`/connect/${request.id}`}>
                 <Button size="sm" className="bg-primary gap-2">
-                  <Shield className="h-4 w-4" /> Verify & Connect
+                  <Shield className="h-4 w-4" /> {isRevealed ? "View Contact Info" : "Verify & Connect"}
                   <ArrowRight className="h-4 w-4" />
                 </Button>
               </Link>
