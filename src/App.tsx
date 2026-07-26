@@ -3,6 +3,7 @@ import { Routes, Route } from "react-router-dom";
 import MainLayout from "@/layouts/MainLayout";
 import DashboardLayout from "@/layouts/DashboardLayout";
 import LoadingSpinner from "@/components/shared/LoadingSpinner";
+import ProtectedRoute from "@/components/shared/ProtectedRoute";
 
 // Lazy-loaded pages
 const LandingPage = lazy(() => import("@/pages/landing/LandingPage"));
@@ -11,6 +12,7 @@ const RegisterPage = lazy(() => import("@/pages/auth/RegisterPage"));
 const ForgotPasswordPage = lazy(() => import("@/pages/auth/ForgotPasswordPage"));
 const ResetPasswordPage = lazy(() => import("@/pages/auth/ResetPasswordPage"));
 const VerifyEmailPage = lazy(() => import("@/pages/auth/VerifyEmailPage"));
+const VerifyEmailPending = lazy(() => import("@/pages/auth/VerifyEmailPending"));
 const DonorDashboard = lazy(() => import("@/pages/donor/Dashboard"));
 const DonorProfile = lazy(() => import("@/pages/donor/Profile"));
 const DonorRequests = lazy(() => import("@/pages/donor/Requests"));
@@ -21,6 +23,7 @@ const ConnectScreen = lazy(() => import("@/pages/shared/ConnectScreen"));
 const SeekerRequestForm = lazy(() => import("@/pages/seeker/RequestForm"));
 const SeekerConfirmation = lazy(() => import("@/pages/seeker/Confirmation"));
 const SeekerVerify = lazy(() => import("@/pages/seeker/Verify"));
+const SeekerConfirmPage = lazy(() => import("@/pages/shared/SeekerConfirmPage"));
 const AdminVerifications = lazy(() => import("@/pages/admin/AdminVerifications"));
 
 function App() {
@@ -41,13 +44,16 @@ function App() {
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
           <Route path="/reset-password" element={<ResetPasswordPage />} />
           <Route path="/verify-email" element={<VerifyEmailPage />} />
+          <Route path="/verify-email-pending" element={<VerifyEmailPending />} />
           <Route path="/seeker/request/:donorId" element={<SeekerRequestForm />} />
           <Route path="/seeker/confirmation" element={<SeekerConfirmation />} />
           <Route path="/seeker/verify" element={<SeekerVerify />} />
+          {/* Public seeker confirm page — no login required */}
+          <Route path="/seeker-confirm" element={<SeekerConfirmPage />} />
         </Route>
 
         {/* Protected routes - DashboardLayout (Sidebar + Topbar) */}
-        <Route element={<DashboardLayout />}>
+        <Route element={<ProtectedRoute><DashboardLayout /></ProtectedRoute>}>
           <Route path="/dashboard" element={<DonorDashboard />} />
           <Route path="/donor/profile" element={<DonorProfile />} />
           <Route path="/donor/requests" element={<DonorRequests />} />

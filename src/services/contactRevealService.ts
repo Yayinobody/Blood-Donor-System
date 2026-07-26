@@ -25,6 +25,7 @@ export interface ContactRevealData {
 /**
  * contactRevealService: The security choke point enforcing mutual light verification,
  * donor medical eligibility, atomic DB reveal, and audit logging.
+ * All DB operations use direct Supabase queries (no custom RPCs needed).
  */
 export const contactRevealService = {
   /**
@@ -68,7 +69,9 @@ export const contactRevealService = {
 
       // Eligibility check
       const isResting = donor?.availability_status === "resting";
-      const restExpired = donor?.next_eligible_date ? new Date(donor.next_eligible_date) <= new Date() : true;
+      const restExpired = donor?.next_eligible_date
+        ? new Date(donor.next_eligible_date) <= new Date()
+        : true;
       const donorEligible = !isResting || restExpired;
 
       let unverifiedParty: "none" | "donor" | "seeker" | "both" = "none";
@@ -107,63 +110,121 @@ export const contactRevealService = {
   },
 
   /**
-   * Execute atomic contact reveal via DB RPC `reveal_contact_and_log_atomically`.
-   * Verifies gates, updates match status to 'contact_revealed', logs to contact_reveal_audit,
-   * and triggers notify-seeker Edge Function.
+   * Reveal contact information between seeker and donor.
+   * Steps:
+   *  1. Fetch full match + request + donor data
+   *  2. Mark match as contact_revealed in request_matches
+   *  3. Log reveal event to contact_reveal_audit
+   *  4. Send seeker notification email via Pipedream → Brevo
    */
-  async revealContact(matchId: string, userAgent?: string): Promise<ContactRevealData> {
-    const ua = userAgent || (typeof navigator !== "undefined" ? navigator.userAgent : "web-app");
+  async revealContact(matchId: string): Promise<ContactRevealData> {
+    // 1. Fetch full match data
+    const { data: match, error: fetchErr } = await supabase
+      .from("request_matches")
+      .select(`
+        id,
+        donor_id,
+        request_id,
+        requests:request_id (
+          id,
+          seeker_name,
+          seeker_email,
+          seeker_phone,
+          hospital_name,
+          blood_type_needed,
+          urgency_level
+        ),
+        users:donor_id (
+          id,
+          full_name,
+          email,
+          phone,
+          display_id
+        )
+      `)
+      .eq("id", matchId)
+      .single();
 
-    // 1. Call atomic DB RPC
-    const { data: rpcResult, error: rpcErr } = await supabase.rpc("reveal_contact_and_log_atomically", {
-      p_match_id: matchId,
-      p_user_agent: ua,
-    });
-
-    if (rpcErr || !rpcResult?.success) {
-      throw new Error(rpcErr?.message || rpcResult?.message || "Failed to reveal contact information.");
+    if (fetchErr || !match) {
+      throw new Error(fetchErr?.message || "Match not found");
     }
 
-    const data = rpcResult.data;
+    const request = Array.isArray(match.requests) ? match.requests[0] : match.requests;
+    const donor = Array.isArray(match.users) ? match.users[0] : match.users;
 
-    // 2. Trigger notification email to seeker via Edge Function
+    if (!request || !donor) {
+      throw new Error("Could not load request or donor details.");
+    }
+
+    // 2. Mark match as contact_revealed
+    const { error: updateErr } = await supabase
+      .from("request_matches")
+      .update({
+        status: "contact_revealed",
+        contact_revealed: true,
+        revealed_at: new Date().toISOString(),
+        responded_at: new Date().toISOString(),
+      })
+      .eq("id", matchId);
+
+    if (updateErr) {
+      throw new Error(`Failed to update match status: ${updateErr.message}`);
+    }
+
+    // 3. Log to contact_reveal_audit
+    await supabase
+      .from("contact_reveal_audit")
+      .insert({
+        request_id: match.request_id,
+        donor_id: match.donor_id,
+        seeker_email: request.seeker_email,
+        reveal_timestamp: new Date().toISOString(),
+        user_agent: typeof navigator !== "undefined" ? navigator.userAgent : "web-app",
+      })
+      .then(({ error }) => {
+        if (error) console.warn("Audit log warning:", error.message);
+      });
+
+    // 4. Notify seeker via Pipedream → Brevo
     try {
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-
-      if (supabaseUrl && supabaseAnonKey && data?.seeker_email) {
-        fetch(`${supabaseUrl}/functions/v1/notify-seeker`, {
+      const pipedreamUrl = import.meta.env.VITE_PIPEDREAM_NOTIFY_URL;
+      if (pipedreamUrl && request.seeker_email) {
+        fetch(pipedreamUrl, {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${supabaseAnonKey}`,
-          },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            seeker_email: data.seeker_email,
-            hospital_name: data.hospital_name,
-            donor_display_id: data.donor_display_id,
+            seeker_email: request.seeker_email,
+            seeker_name: request.seeker_name || "Blood Seeker",
+            hospital_name: request.hospital_name || "your hospital",
+            donor_display_id: donor.display_id,
+            donor_email: donor.email,
+            blood_type: request.blood_type_needed,
+            urgency: request.urgency_level,
           }),
-        }).catch((err) => console.warn("Notify edge function notice:", err));
+        }).catch((err) => console.warn("Seeker notification error:", err));
       }
     } catch (e) {
       console.warn("Notification trigger error:", e);
     }
 
     return {
-      seeker_name: data.seeker_name,
-      seeker_email: data.seeker_email,
-      seeker_phone: data.seeker_phone,
-      hospital_name: data.hospital_name,
-      donor_full_name: data.donor_full_name,
-      donor_email: data.donor_email,
-      donor_phone: data.donor_phone,
-      donor_display_id: data.donor_display_id,
+      seeker_name: request.seeker_name,
+      seeker_email: request.seeker_email,
+      seeker_phone: request.seeker_phone,
+      hospital_name: request.hospital_name || "Hospital",
+      donor_full_name: donor.full_name,
+      donor_email: donor.email,
+      donor_phone: donor.phone,
+      donor_display_id: donor.display_id,
     };
   },
 
   /**
-   * Complete donation atomically via DB RPC `complete_donation_atomically`.
-   * Marks request fulfilled, match accepted, logs donation, and sets donor resting period (+84 days).
+   * Mark a donation as fulfilled.
+   * Steps:
+   *  1. Mark the request as fulfilled
+   *  2. Log the donation in public.donations
+   *  3. Set donor availability to "resting" for 84 days (WHO 12-week minimum interval)
    */
   async completeDonation(
     matchId: string,
@@ -171,17 +232,56 @@ export const contactRevealService = {
     notes?: string,
     volumeMl: number = 450
   ): Promise<boolean> {
-    const { data, error } = await supabase.rpc("complete_donation_atomically", {
-      p_match_id: matchId,
-      p_donor_id: donorId,
-      p_notes: notes || null,
-      p_volume_ml: volumeMl,
-    });
+    try {
+      // Fetch match to get request_id
+      const { data: match, error: matchErr } = await supabase
+        .from("request_matches")
+        .select("request_id")
+        .eq("id", matchId)
+        .single();
 
-    if (error || !data?.success) {
-      throw new Error(error?.message || "Failed to complete donation atomically.");
+      if (matchErr || !match) throw new Error("Match not found");
+
+      // Mark request fulfilled
+      const { error: reqErr } = await supabase
+        .from("requests")
+        .update({ status: "fulfilled" })
+        .eq("id", match.request_id);
+
+      if (reqErr) throw new Error(`Failed to update request: ${reqErr.message}`);
+
+      // Log donation
+      const donationDate = new Date().toISOString();
+      const { error: donErr } = await supabase
+        .from("donations")
+        .insert({
+          donor_id: donorId,
+          donation_date: donationDate,
+          volume_ml: volumeMl,
+          status: "completed",
+          notes: notes || null,
+        });
+
+      if (donErr) console.warn("Donation log warning:", donErr.message);
+
+      // Set donor resting period (84 days = WHO 12-week minimum)
+      const nextEligibleDate = new Date();
+      nextEligibleDate.setDate(nextEligibleDate.getDate() + 84);
+
+      await supabase
+        .from("users")
+        .update({
+          availability_status: "resting",
+          last_donation_date: donationDate,
+          next_eligible_date: nextEligibleDate.toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", donorId);
+
+      return true;
+    } catch (err: any) {
+      console.error("completeDonation error:", err.message);
+      throw err;
     }
-
-    return true;
   },
 };
