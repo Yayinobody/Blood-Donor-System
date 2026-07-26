@@ -21,6 +21,7 @@ const ConnectScreen = lazy(() => import("@/pages/shared/ConnectScreen"));
 const SeekerRequestForm = lazy(() => import("@/pages/seeker/RequestForm"));
 const SeekerConfirmation = lazy(() => import("@/pages/seeker/Confirmation"));
 const SeekerVerify = lazy(() => import("@/pages/seeker/Verify"));
+const AdminVerifications = lazy(() => import("@/pages/admin/AdminVerifications"));
 
 function App() {
   return (
@@ -53,7 +54,7 @@ function App() {
           <Route path="/donor/history" element={<DonorHistory />} />
           <Route path="/donor/verification" element={<DonorVerification />} />
           <Route path="/connect/:matchId" element={<ConnectScreen />} />
-          {/*<Route path="/ai-assistant" element={<AIAssistantPage />} />*/}
+          <Route path="/admin/verifications" element={<AdminVerifications />} />
         </Route>
       </Routes>
     </Suspense>

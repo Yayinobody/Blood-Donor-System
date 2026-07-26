@@ -57,6 +57,7 @@ export default function RegisterPage() {
     register,
     handleSubmit,
     watch,
+    setValue,
     formState: { errors },
   } = useForm<RegisterFormValues>();
 
@@ -77,10 +78,6 @@ export default function RegisterPage() {
   const strengthLabels = ["Weak", "Fair", "Good", "Strong"];
 
   const onSubmit = async (data: RegisterFormValues) => {
-    if (!selectedBloodType) {
-      toast.error('Please select your blood type.');
-      return;
-    }
     if (data.password !== data.confirmPassword) {
       toast.error('Passwords do not match.');
       return;
@@ -91,7 +88,7 @@ export default function RegisterPage() {
         data.email,
         data.password,
         data.fullName,
-        selectedBloodType,
+        data.bloodType,
         userLocation?.lat ?? null,
         userLocation?.lng ?? null
       );
@@ -231,10 +228,10 @@ export default function RegisterPage() {
                     whileTap={{ scale: 0.95 }}
                     onClick={() => {
                       setSelectedBloodType(type);
-                      register("bloodType", { required: true });
-                      // manually update the hidden select
-                      const select = document.getElementById("bloodType") as HTMLSelectElement;
-                      if (select) select.value = type;
+                      setValue("bloodType", type, {
+                        shouldValidate: true,
+                        shouldDirty: true,
+                      });
                     }}
                     className={`py-2 px-1 rounded-lg border text-sm font-medium transition-colors ${
                       selectedBloodType === type
@@ -246,18 +243,13 @@ export default function RegisterPage() {
                   </motion.button>
                 ))}
               </div>
-              <select
-                id="bloodType"
-                className="sr-only"
+
+              {/* Hidden field is the single source of truth registered with RHF */}
+              <input
+                type="hidden"
                 {...register("bloodType", { required: "Blood type is required" })}
-              >
-                <option value="">Select</option>
-                {bloodTypes.map((t) => (
-                  <option key={t} value={t}>
-                    {t}
-                  </option>
-                ))}
-              </select>
+              />
+
               {errors.bloodType && (
                 <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-1 text-sm text-error">
                   {errors.bloodType.message}

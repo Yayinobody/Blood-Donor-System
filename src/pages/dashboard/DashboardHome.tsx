@@ -2,7 +2,6 @@ import { motion } from "framer-motion";
 import {
   Users,
   Droplets,
-  Building2,
   CheckCircle,
   Clock,
   AlertTriangle,
@@ -110,8 +109,8 @@ export default function DashboardHome() {
           color="red"
         />
         <StatCard
-          icon={Building2}
-          title="Active Hospitals"
+          icon={AlertTriangle}
+          title="Active Requests"
           value="48"
           change="+3"
           trend="up"

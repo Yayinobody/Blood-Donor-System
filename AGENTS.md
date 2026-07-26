@@ -39,8 +39,7 @@ discrepancy and ask rather than silently picking one.
   here — see Notification System below).
 - **RAG:** Zilliz (vector store) + OpenAI (embeddings and/or completion model).
 - **Package manager:** npm.
-- **Frontend framework/language:** not yet specified — fill in once confirmed.
-- **Hosting / deployment target:** not yet specified — fill in once confirmed.
+- **Frontend framework/language:** Vite React
 
 > Agent note: since Supabase provides Auth and Postgres directly, prefer Supabase's built-in
 > mechanisms (RLS policies, Supabase Auth, Supabase client libraries) over hand-rolled

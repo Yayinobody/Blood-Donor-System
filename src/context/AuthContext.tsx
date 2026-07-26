@@ -8,9 +8,11 @@ interface UserProfile {
   full_name: string | null;
   role: 'donor' | 'seeker' | 'admin';
   blood_type: string | null;
+  phone: string | null;
   display_id: string;
   availability_status: string;
   is_verified: boolean;
+  verification_method: string | null;
   latitude: number | null;
   longitude: number | null;
   last_donation_date: string | null;
@@ -104,58 +106,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     latitude: number | null,
     longitude: number | null
   ) => {
-    // 1. Create Supabase Auth user
-    const { data: authData, error: authError } = await supabase.auth.signUp({
-      email,
-      password,
-    });
-    if (authError) throw authError;
-
-    const userId = authData.user?.id;
-    if (!userId) throw new Error('User ID not returned after sign up.');
-
-    // 2. Generate unique display_id
-    const displayId = `Donor #${Math.floor(100000 + Math.random() * 900000)}`;
-
     // Default fallback coordinates if browser location permission was blocked/unavailable
     const finalLat = latitude ?? (9.3075 + (Math.random() - 0.5) * 0.02);
     const finalLng = longitude ?? (123.3050 + (Math.random() - 0.5) * 0.02);
 
-    // 3. Upsert profile in public.users with role=donor and location
-    const { error: profileError } = await supabase.from('users').upsert({
-      id: userId,
+    // Pass profile fields as raw_user_meta_data so the SECURITY DEFINER trigger
+    // `handle_new_user` can create the public.users row server-side.
+    // This avoids the RLS violation that occurs when no session exists yet
+    // (e.g. when email confirmation is enabled and auth.uid() would be null).
+    const { error: authError } = await supabase.auth.signUp({
       email,
-      full_name: fullName,
-      role: 'donor',
-      blood_type: bloodType || null,
-      display_id: displayId,
-      availability_status: 'available',
-      is_verified: false,
-      latitude: finalLat,
-      longitude: finalLng,
-    }, { onConflict: 'id' });
-
-    if (profileError) {
-      // If display_id collision, try once more with new ID
-      if (profileError.code === '23505') {
-        const retryId = `Donor #${Math.floor(100000 + Math.random() * 900000)}`;
-        const { error: retryError } = await supabase.from('users').upsert({
-          id: userId,
-          email,
+      password,
+      options: {
+        data: {
           full_name: fullName,
-          role: 'donor',
           blood_type: bloodType || null,
-          display_id: retryId,
-          availability_status: 'available',
-          is_verified: false,
           latitude: finalLat,
           longitude: finalLng,
-        }, { onConflict: 'id' });
-        if (retryError) throw retryError;
-      } else {
-        throw profileError;
-      }
-    }
+        },
+      },
+    });
+
+    if (authError) throw authError;
   };
 
   const signOut = async () => {

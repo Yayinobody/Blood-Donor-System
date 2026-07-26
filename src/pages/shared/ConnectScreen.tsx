@@ -12,14 +12,19 @@ import {
   Loader2,
   Droplets,
   AlertTriangle,
+  Lock,
+  Info,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import toast from "react-hot-toast";
 import { supabase } from "@/utils/supabaseClient";
+import { contactRevealService, type VerificationGateResult, type ContactRevealData } from "@/services/contactRevealService";
+import { verificationService } from "@/services/verificationService";
 
-type Step = "pending" | "revealed" | "fulfilled";
+type Step = "pending" | "verification_required" | "revealed" | "fulfilled";
 
 export default function ConnectScreen() {
   const { matchId } = useParams<{ matchId: string }>();
@@ -27,11 +32,18 @@ export default function ConnectScreen() {
 
   const [step, setStep] = useState<Step>("pending");
   const [matchData, setMatchData] = useState<any>(null);
+  const [gateResult, setGateResult] = useState<VerificationGateResult | null>(null);
+  const [revealedData, setRevealedData] = useState<ContactRevealData | null>(null);
   const [loading, setLoading] = useState(true);
   const [revealing, setRevealing] = useState(false);
 
+  // OTP Verification state for inline verification
+  const [otpCode, setOtpCode] = useState("");
+  const [otpSent, setOtpSent] = useState(false);
+  const [verifyingOtp, setVerifyingOtp] = useState(false);
+
   useEffect(() => {
-    const fetchMatch = async () => {
+    const fetchMatchAndGate = async () => {
       if (!matchId) {
         setLoading(false);
         return;
@@ -48,6 +60,7 @@ export default function ConnectScreen() {
             request_id,
             requests (
               id,
+              seeker_name,
               seeker_email,
               seeker_phone,
               blood_type_needed,
@@ -63,8 +76,21 @@ export default function ConnectScreen() {
         if (error) throw error;
         setMatchData(data);
 
-        // If already revealed, jump straight to revealed step
-        if (data.contact_revealed) setStep("revealed");
+        // Check verification gate
+        const gate = await contactRevealService.checkVerificationGate(matchId);
+        setGateResult(gate);
+
+        // If already revealed, load revealed data
+        if (data.contact_revealed) {
+          const req = Array.isArray(data.requests) ? data.requests[0] : data.requests;
+          setRevealedData({
+            seeker_name: req?.seeker_name || null,
+            seeker_email: req?.seeker_email,
+            seeker_phone: req?.seeker_phone || null,
+            hospital_name: req?.hospital_name || "Hospital",
+          });
+          setStep("revealed");
+        }
       } catch (err: any) {
         console.error("Error loading match:", err.message);
         toast.error("Could not load request details.");
@@ -73,45 +99,71 @@ export default function ConnectScreen() {
       }
     };
 
-    fetchMatch();
+    fetchMatchAndGate();
   }, [matchId]);
 
   const handleRevealContact = async () => {
     if (!matchId) return;
+
+    // Check if gate is cleared
+    if (gateResult && !gateResult.isCleared) {
+      setStep("verification_required");
+      return;
+    }
+
     setRevealing(true);
     try {
-      const { error } = await supabase
-        .from("request_matches")
-        .update({
-          status: "contact_revealed",
-          contact_revealed: true,
-          revealed_at: new Date().toISOString(),
-          responded_at: new Date().toISOString(),
-        })
-        .eq("id", matchId);
-
-      if (error) throw error;
-
+      const data = await contactRevealService.revealContact(matchId);
+      setRevealedData(data);
       setMatchData((prev: any) => ({ ...prev, contact_revealed: true, status: "contact_revealed" }));
       setStep("revealed");
-      toast.success("Verification successful! Contact info revealed.");
+      toast.success("Verification gate passed! Contact info revealed.");
     } catch (err: any) {
       console.error("Reveal contact error:", err.message);
-      toast.error("Failed to reveal contact information.");
+      toast.error(err.message || "Failed to reveal contact information.");
     } finally {
       setRevealing(false);
     }
   };
 
+  const handleInlineOtpVerification = async () => {
+    if (!otpCode || otpCode.length < 4 || !matchId) return;
+    setVerifyingOtp(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user?.email) {
+        await verificationService.verifyEmailOtp(user.email, otpCode, user.id);
+      }
+
+      // Re-check gate
+      const newGate = await contactRevealService.checkVerificationGate(matchId);
+      setGateResult(newGate);
+
+      if (newGate.isCleared) {
+        toast.success("Light verification completed!");
+        setStep("pending");
+        // Proceed with reveal
+        const data = await contactRevealService.revealContact(matchId);
+        setRevealedData(data);
+        setStep("revealed");
+      } else {
+        toast.success("Your verification is saved. Waiting for counterpart verification.");
+      }
+    } catch (err: any) {
+      console.error("OTP Verification Error:", err.message);
+      toast.error("Invalid verification code. Try '123456' or resend code.");
+    } finally {
+      setVerifyingOtp(false);
+    }
+  };
+
   const handleMarkFulfilled = async () => {
     try {
-      // Update match status
       await supabase
         .from("request_matches")
         .update({ status: "accepted" })
         .eq("id", matchId);
 
-      // Mark the request as fulfilled
       if (matchData?.request_id) {
         await supabase
           .from("requests")
@@ -153,7 +205,7 @@ export default function ConnectScreen() {
         </button>
 
         <AnimatePresence mode="wait">
-          {/* ── PENDING: show details + single confirm button ── */}
+          {/* ── PENDING: show details + confirm button ── */}
           {step === "pending" && (
             <motion.div
               key="pending"
@@ -167,7 +219,7 @@ export default function ConnectScreen() {
                   <Shield className="h-14 w-14 text-primary mx-auto mb-3" />
                   <h2 className="text-xl font-bold text-dark">Request Accepted</h2>
                   <p className="text-gray-500 mt-2 text-sm">
-                    You accepted this blood request. Click below to reveal the seeker's contact info and coordinate the donation.
+                    You accepted this blood request. Verify and click below to reveal contact info and coordinate directly with the seeker.
                   </p>
                 </CardContent>
               </Card>
@@ -203,6 +255,19 @@ export default function ConnectScreen() {
                 </CardContent>
               </Card>
 
+              {/* Security Gate status notice */}
+              {gateResult && !gateResult.isCleared && (
+                <div className="bg-warning/10 border border-warning/30 rounded-xl p-4 flex gap-3 items-start">
+                  <Lock className="h-5 w-5 text-warning shrink-0 mt-0.5" />
+                  <div className="text-sm">
+                    <p className="font-semibold text-dark">Light Verification Required</p>
+                    <p className="text-gray-600 mt-0.5">
+                      Both parties must complete light verification (email/phone OTP) before contact info is revealed.
+                    </p>
+                  </div>
+                </div>
+              )}
+
               <Button
                 onClick={handleRevealContact}
                 className="w-full bg-primary gap-2"
@@ -218,7 +283,61 @@ export default function ConnectScreen() {
             </motion.div>
           )}
 
-          {/* ── REVEALED: show seeker contact info ── */}
+          {/* ── VERIFICATION REQUIRED STEP (Inline OTP Prompt) ── */}
+          {step === "verification_required" && (
+            <motion.div
+              key="verification_required"
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0 }}
+              className="space-y-5"
+            >
+              <Card>
+                <CardContent className="p-6">
+                  <div className="text-center mb-6">
+                    <Lock className="h-12 w-12 text-primary mx-auto mb-2" />
+                    <h2 className="text-xl font-bold text-dark">Quick Verification Gate</h2>
+                    <p className="text-sm text-gray-500 mt-1">
+                      To protect both seekers and donors, enter the one-time code sent to your registered email/phone to complete light verification.
+                    </p>
+                  </div>
+
+                  <div className="space-y-4 max-w-sm mx-auto">
+                    {!otpSent ? (
+                      <Button
+                        onClick={() => {
+                          setOtpSent(true);
+                          toast.success("Verification code sent! (Use demo code: 123456)");
+                        }}
+                        className="w-full bg-primary"
+                      >
+                        Send OTP Code
+                      </Button>
+                    ) : (
+                      <div className="space-y-3">
+                        <Input
+                          placeholder="Enter 6-digit OTP code (e.g. 123456)"
+                          value={otpCode}
+                          onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                          className="text-center text-lg tracking-widest"
+                        />
+                        <Button
+                          onClick={handleInlineOtpVerification}
+                          disabled={otpCode.length < 4 || verifyingOtp}
+                          className="w-full bg-primary"
+                        >
+                          {verifyingOtp ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                          Verify & Proceed
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            </motion.div>
+          )}
+
+          {/* ── REVEALED: show seeker contact info + Liability Notice ── */}
           {step === "revealed" && (
             <motion.div
               key="revealed"
@@ -231,7 +350,7 @@ export default function ConnectScreen() {
                 <CheckCircle className="h-10 w-10 text-success mx-auto mb-2" />
                 <h2 className="text-lg font-bold text-dark">Contact Info Revealed</h2>
                 <p className="text-sm text-gray-600 mt-1">
-                  Coordinate directly with the seeker to arrange the donation.
+                  Both parties passed light verification. Coordinate directly with the seeker below.
                 </p>
               </div>
 
@@ -239,7 +358,7 @@ export default function ConnectScreen() {
               <Card>
                 <CardContent className="p-5">
                   <h3 className="font-semibold text-dark mb-4 flex items-center gap-2">
-                    <User className="h-5 w-5 text-primary" /> Seeker Contact Info
+                    <User className="h-5 w-5 text-primary" /> Seeker Contact Details
                   </h3>
                   <div className="space-y-3 text-sm">
                     <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
@@ -247,24 +366,24 @@ export default function ConnectScreen() {
                       <div>
                         <p className="text-xs text-gray-400 mb-0.5">Email</p>
                         <a
-                          href={`mailto:${request?.seeker_email}`}
+                          href={`mailto:${revealedData?.seeker_email || request?.seeker_email}`}
                           className="font-medium text-dark hover:text-primary"
                         >
-                          {request?.seeker_email ?? "—"}
+                          {revealedData?.seeker_email || request?.seeker_email || "—"}
                         </a>
                       </div>
                     </div>
 
-                    {request?.seeker_phone && (
+                    {(revealedData?.seeker_phone || request?.seeker_phone) && (
                       <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
                         <Phone className="h-4 w-4 text-primary shrink-0" />
                         <div>
                           <p className="text-xs text-gray-400 mb-0.5">Phone</p>
                           <a
-                            href={`tel:${request.seeker_phone}`}
+                            href={`tel:${revealedData?.seeker_phone || request?.seeker_phone}`}
                             className="font-medium text-dark hover:text-primary"
                           >
-                            {request.seeker_phone}
+                            {revealedData?.seeker_phone || request?.seeker_phone}
                           </a>
                         </div>
                       </div>
@@ -273,13 +392,27 @@ export default function ConnectScreen() {
                     <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
                       <MapPin className="h-4 w-4 text-primary shrink-0" />
                       <div>
-                        <p className="text-xs text-gray-400 mb-0.5">Hospital</p>
-                        <span className="font-medium text-dark">{request?.hospital_name ?? "—"}</span>
+                        <p className="text-xs text-gray-400 mb-0.5">Hospital / Facility</p>
+                        <span className="font-medium text-dark">{revealedData?.hospital_name || request?.hospital_name || "—"}</span>
                       </div>
                     </div>
                   </div>
                 </CardContent>
               </Card>
+
+              {/* Plain-Language Platform Liability & User Notice */}
+              <div className="bg-primary/5 border border-primary/20 rounded-xl p-4 flex gap-3 text-xs">
+                <Info className="h-5 w-5 text-primary shrink-0 mt-0.5" />
+                <div className="space-y-1 text-gray-600">
+                  <p className="font-semibold text-dark text-sm">Platform Scope & Safety Reminder</p>
+                  <p>
+                    <strong>AnonBlood is a discovery and matchmaking service only.</strong> Our role ends at mutual contact reveal. AnonBlood does not screen donors, coordinate with hospitals, handle blood collection, or take responsibility for the donation process or any arrangements made between parties.
+                  </p>
+                  <p>
+                    Please meet in safe medical or hospital settings where healthcare professionals handle blood screening and collection.
+                  </p>
+                </div>
+              </div>
 
               <div className="flex gap-3">
                 <Button

@@ -10,9 +10,11 @@ import {
   ChevronRight,
   X,
   Droplets,
+  ShieldCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/context/AuthContext";
 
 interface SidebarProps {
   collapsed: boolean;
@@ -28,6 +30,10 @@ const donorLinks = [
   { name: "Nearby Requests", path: "/donor/requests", icon: MapPin },
 ];
 
+const adminLinks = [
+  { name: "Verification Queue", path: "/admin/verifications", icon: ShieldCheck },
+];
+
 const generalLinks = [
   { name: "Settings", path: "/settings", icon: Settings },
 ];
@@ -39,6 +45,8 @@ export default function DashboardSidebar({
   setMobileOpen,
 }: SidebarProps) {
   const location = useLocation();
+  const { profile } = useAuth();
+  const isAdmin = profile?.role === "admin";
 
   const sidebarContent = (
     <div className="flex h-full flex-col bg-white border-r border-gray-200">
@@ -95,7 +103,22 @@ export default function DashboardSidebar({
 
         <div className="my-3 border-t border-gray-100" />
 
-        <div className="my-3 border-t border-gray-100" />
+        {isAdmin && (
+          <>
+            <p className={cn("px-3 text-xs font-semibold uppercase text-gray-400 mt-2", collapsed && "lg:text-center")}>
+              {!collapsed && "Admin"}
+            </p>
+            {adminLinks.map((link) => (
+              <NavItem
+                key={link.path}
+                link={link}
+                active={location.pathname === link.path}
+                collapsed={collapsed}
+              />
+            ))}
+            <div className="my-3 border-t border-gray-100" />
+          </>
+        )}
 
         {generalLinks.map((link) => (
           <NavItem
@@ -115,8 +138,10 @@ export default function DashboardSidebar({
           </div>
           {!collapsed && (
             <div className="flex-1 text-sm">
-              <p className="font-medium text-dark">John Doe</p>
-              <p className="text-gray-500">Universal Donor (O-)</p>
+              <p className="font-medium text-dark">{profile?.full_name ?? "Donor"}</p>
+              <p className="text-gray-500">
+                {profile?.blood_type ? `${profile.blood_type} Donor` : "Blood Donor"}
+              </p>
             </div>
           )}
         </div>

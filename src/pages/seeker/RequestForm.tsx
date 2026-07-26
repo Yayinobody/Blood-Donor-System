@@ -20,6 +20,7 @@ import toast from "react-hot-toast";
 import type { BloodType, UrgencyLevel } from "@/types";
 import { BLOOD_TYPES } from "@/types";
 import { supabase } from "@/utils/supabaseClient";
+import { rateLimiter } from "@/services/rateLimiter";
 
 interface SeekerRequestFormValues {
   seeker_email: string;
@@ -77,6 +78,13 @@ export default function SeekerRequestForm() {
 
     setIsSubmitting(true);
     try {
+      // 0. Rate limit check (by seeker email as identifier)
+      const limitCheck = await rateLimiter.checkRequestLimit(data.seeker_email);
+      if (!limitCheck.allowed) {
+        toast.error(limitCheck.message ?? "Daily request limit reached. Please try again tomorrow.");
+        setIsSubmitting(false);
+        return;
+      }
       // 1. Insert into public.requests (no donor_id column in schema)
       const { data: requestData, error: requestError } = await supabase
         .from("requests")
@@ -106,6 +114,9 @@ export default function SeekerRequestForm() {
         });
 
       if (matchError) throw matchError;
+
+      // 3. Record this submission for rate-limiting tracking
+      await rateLimiter.recordRequest(data.seeker_email);
 
       toast.success("Request sent! The donor will be notified.");
       navigate("/seeker/confirmation", {

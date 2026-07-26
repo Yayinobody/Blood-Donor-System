@@ -9,17 +9,23 @@ import {
   AlertTriangle,
   Mail,
   Phone,
+  Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import toast from "react-hot-toast";
+import { useAuth } from "@/context/AuthContext";
+import { verificationService } from "@/services/verificationService";
 
 type VerificationTab = "light" | "strong";
 
 export default function DonorVerification() {
   const [activeTab, setActiveTab] = useState<VerificationTab>("light");
+  const { profile } = useAuth();
+
+  const isLightVerified = profile?.is_verified || false;
 
   return (
     <motion.div
@@ -38,12 +44,14 @@ export default function DonorVerification() {
       <Card>
         <CardContent className="p-5">
           <div className="flex items-center gap-3">
-            <div className="h-12 w-12 rounded-full bg-success/10 flex items-center justify-center">
-              <BadgeCheck className="h-6 w-6 text-success" />
+            <div className={`h-12 w-12 rounded-full flex items-center justify-center ${isLightVerified ? "bg-success/10" : "bg-warning/10"}`}>
+              <BadgeCheck className={`h-6 w-6 ${isLightVerified ? "text-success" : "text-warning"}`} />
             </div>
             <div>
               <p className="font-semibold text-dark">Light Verification</p>
-              <p className="text-sm text-success">Completed</p>
+              <p className={`text-sm ${isLightVerified ? "text-success" : "text-warning"}`}>
+                {isLightVerified ? "Completed ✓" : "Required for contact reveal"}
+              </p>
             </div>
           </div>
           <div className="mt-4 pt-4 border-t flex items-center gap-3">
@@ -52,7 +60,7 @@ export default function DonorVerification() {
             </div>
             <div>
               <p className="font-semibold text-dark">Strong Verification</p>
-              <p className="text-sm text-gray-500">Optional — upgrade to get a Verified badge</p>
+              <p className="text-sm text-gray-500">Optional — upload government ID for a Verified badge</p>
             </div>
           </div>
         </CardContent>
@@ -85,10 +93,41 @@ export default function DonorVerification() {
 
 // --------------------- Light Verification ---------------------
 function LightVerification() {
+  const { user, profile, refreshProfile } = useAuth();
   const [emailSent, setEmailSent] = useState(false);
   const [phoneSent, setPhoneSent] = useState(false);
   const [emailOtp, setEmailOtp] = useState("");
   const [phoneOtp, setPhoneOtp] = useState("");
+  const [phoneNumber, setPhoneNumber] = useState(profile?.phone || "");
+  const [loading, setLoading] = useState(false);
+
+  const handleVerifyEmail = async () => {
+    if (!emailOtp || !user?.email) return;
+    setLoading(true);
+    try {
+      await verificationService.verifyEmailOtp(user.email, emailOtp, user.id);
+      await refreshProfile();
+      toast.success("Email light verification successful!");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to verify email code");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleVerifyPhone = async () => {
+    if (!phoneOtp || !phoneNumber) return;
+    setLoading(true);
+    try {
+      await verificationService.verifyPhoneOtp(phoneNumber, phoneOtp, user?.id);
+      await refreshProfile();
+      toast.success("Phone light verification successful!");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to verify phone code");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <motion.div
@@ -108,10 +147,14 @@ function LightVerification() {
             <div className="flex items-center gap-2 mb-2">
               <Mail className="h-5 w-5 text-primary" />
               <span className="font-medium text-dark">Email Verification</span>
-              <Badge variant="success" className="ml-auto">Done</Badge>
+              {profile?.is_verified ? (
+                <Badge variant="success" className="ml-auto">Done</Badge>
+              ) : (
+                <Badge variant="warning" className="ml-auto">Pending</Badge>
+              )}
             </div>
             <p className="text-sm text-gray-500 mb-3">
-              We'll send a one-time code to <strong>j***@example.com</strong>
+              Code will be sent to <strong>{user?.email || "your registered email"}</strong>
             </p>
             {!emailSent ? (
               <Button
@@ -119,7 +162,7 @@ function LightVerification() {
                 size="sm"
                 onClick={() => {
                   setEmailSent(true);
-                  toast.success("Code sent to your email");
+                  toast.success("Code sent to your email (Demo code: 123456)");
                 }}
               >
                 Send Code
@@ -127,17 +170,17 @@ function LightVerification() {
             ) : (
               <div className="flex gap-2">
                 <Input
-                  placeholder="123456"
+                  placeholder="Enter 6-digit OTP code (e.g. 123456)"
                   value={emailOtp}
                   onChange={(e) => setEmailOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
                   className="flex-1"
                 />
                 <Button
                   size="sm"
-                  onClick={() => toast.success("Email verified!")}
-                  disabled={emailOtp.length < 4}
+                  onClick={handleVerifyEmail}
+                  disabled={emailOtp.length < 4 || loading}
                 >
-                  Verify
+                  {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Verify"}
                 </Button>
               </div>
             )}
@@ -151,36 +194,48 @@ function LightVerification() {
               <Badge variant="outline" className="ml-auto">Optional</Badge>
             </div>
             <p className="text-sm text-gray-500 mb-3">
-              Add your phone number for an extra layer of verification.
+              Add your mobile number for SMS verification.
             </p>
-            {!phoneSent ? (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  setPhoneSent(true);
-                  toast.success("Code sent to your phone");
-                }}
-              >
-                Send SMS Code
-              </Button>
-            ) : (
-              <div className="flex gap-2">
-                <Input
-                  placeholder="123456"
-                  value={phoneOtp}
-                  onChange={(e) => setPhoneOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                  className="flex-1"
-                />
+            <div className="space-y-3">
+              <Input
+                placeholder="+63 912 345 6789"
+                value={phoneNumber}
+                onChange={(e) => setPhoneNumber(e.target.value)}
+                className="mb-2"
+              />
+              {!phoneSent ? (
                 <Button
+                  variant="outline"
                   size="sm"
-                  onClick={() => toast.success("Phone verified!")}
-                  disabled={phoneOtp.length < 4}
+                  onClick={() => {
+                    if (!phoneNumber) {
+                      toast.error("Please enter a phone number first");
+                      return;
+                    }
+                    setPhoneSent(true);
+                    toast.success("Code sent to your phone (Demo code: 123456)");
+                  }}
                 >
-                  Verify
+                  Send SMS Code
                 </Button>
-              </div>
-            )}
+              ) : (
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="Enter 6-digit SMS code (e.g. 123456)"
+                    value={phoneOtp}
+                    onChange={(e) => setPhoneOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                    className="flex-1"
+                  />
+                  <Button
+                    size="sm"
+                    onClick={handleVerifyPhone}
+                    disabled={phoneOtp.length < 4 || loading}
+                  >
+                    {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Verify"}
+                  </Button>
+                </div>
+              )}
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -190,8 +245,11 @@ function LightVerification() {
 
 // --------------------- Strong Verification ---------------------
 function StrongVerification() {
+  const { user, refreshProfile } = useAuth();
   const [file, setFile] = useState<File | null>(null);
+  const [idType, setIdType] = useState("passport");
   const [status, setStatus] = useState<"idle" | "reviewing" | "approved">("idle");
+  const [submitting, setSubmitting] = useState(false);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -199,13 +257,22 @@ function StrongVerification() {
     }
   };
 
-  const handleSubmit = () => {
-    if (!file) {
+  const handleSubmit = async () => {
+    if (!file || !user) {
       toast.error("Please upload an ID document");
       return;
     }
-    setStatus("reviewing");
-    toast.success("ID submitted for review. This usually takes 24-48 hours.");
+    setSubmitting(true);
+    try {
+      await verificationService.submitStrongVerification(user.id, file, idType);
+      setStatus("reviewing");
+      toast.success("Government ID submitted for review. This usually takes 24-48 hours.");
+      await refreshProfile();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to submit ID for verification");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -221,57 +288,68 @@ function StrongVerification() {
             <div>
               <p className="font-medium text-dark">Strong Verification</p>
               <p className="text-sm text-gray-500 mt-1">
-                Upload a government-issued ID (passport, driver's license, UMID, etc.) to get a
+                Upload a government-issued ID (Passport, Driver's License, UMID, PhilID) to earn a
                 <Badge variant="success" className="mx-1 gap-1 text-xs">
                   <BadgeCheck className="h-3 w-3" /> Verified
                 </Badge>
-                badge on your donor profile. This builds trust with seekers and speeds up the contact exchange process.
+                badge on your donor card.
               </p>
             </div>
           </div>
 
           {status === "idle" && (
             <>
+              {/* ID Type selector */}
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">
+                  ID Document Type
+                </label>
+                <select
+                  value={idType}
+                  onChange={(e) => setIdType(e.target.value)}
+                  className="w-full rounded-lg border border-gray-300 p-2.5 text-sm bg-white"
+                >
+                  <option value="passport">Passport</option>
+                  <option value="drivers_license">Driver's License</option>
+                  <option value="umid">UMID / SSS ID</option>
+                  <option value="national_id">Philippine National ID (PhilID)</option>
+                  <option value="voters_id">Voter's ID</option>
+                </select>
+              </div>
+
               {/* Upload area */}
               <div className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:border-primary/50 transition-colors">
                 <Upload className="h-10 w-10 text-gray-400 mx-auto mb-3" />
                 <p className="text-sm font-medium text-dark">
-                  {file ? file.name : "Drag & drop your ID, or click to browse"}
+                  {file ? file.name : "Drag & drop your ID document, or click to browse"}
                 </p>
                 <p className="text-xs text-gray-400 mt-1">
-                  Accepted: JPG, PNG, PDF (max 5MB)
+                  Accepted formats: JPG, PNG, PDF (max 5MB)
                 </p>
                 <input
                   type="file"
                   accept=".jpg,.jpeg,.png,.pdf"
                   onChange={handleFileChange}
-                  className="absolute inset-0 opacity-0 cursor-pointer"
+                  className="mt-3 block w-full text-xs text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20 cursor-pointer"
                 />
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="mt-3 relative z-10"
-                  onClick={() => document.querySelector<HTMLInputElement>('input[type="file"]')?.click()}
-                >
-                  Browse Files
-                </Button>
               </div>
 
               {/* Privacy notice */}
               <div className="bg-primary/5 border border-primary/20 rounded-lg p-3 flex gap-2 text-xs">
                 <AlertTriangle className="h-4 w-4 text-primary flex-shrink-0" />
                 <p className="text-gray-600">
-                  Your ID is encrypted and only reviewed by our admin team for verification purposes.
-                  It is never shared with seekers or other users.
+                  Your ID is encrypted under RA 10173 guidelines and reviewed strictly by our internal admins.
+                  It is never disclosed to blood seekers or third parties.
                 </p>
               </div>
 
               <Button
                 className="w-full bg-primary gap-2"
-                disabled={!file}
+                disabled={!file || submitting}
                 onClick={handleSubmit}
               >
-                <Shield className="h-4 w-4" /> Submit for Review
+                {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Shield className="h-4 w-4" />}
+                Submit for Admin Review
               </Button>
             </>
           )}
@@ -281,8 +359,7 @@ function StrongVerification() {
               <Clock className="h-10 w-10 text-warning mx-auto mb-2" />
               <p className="font-medium text-dark">Under Review</p>
               <p className="text-sm text-gray-500 mt-1">
-                Your ID is being reviewed by our team. This usually takes 24-48 hours.
-                You'll be notified by email once approved.
+                Your ID has been submitted and recorded for admin review. This usually takes 24-48 hours.
               </p>
             </div>
           )}
@@ -292,7 +369,7 @@ function StrongVerification() {
               <CheckCircle className="h-10 w-10 text-success mx-auto mb-2" />
               <p className="font-medium text-dark">Strong Verification Approved!</p>
               <p className="text-sm text-gray-500 mt-1">
-                Your donor profile now shows a Verified badge. Seekers will see this when browsing.
+                Your donor profile now displays a Verified badge.
               </p>
             </div>
           )}
