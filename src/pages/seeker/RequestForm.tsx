@@ -1,10 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { motion } from "framer-motion";
 import {
   ArrowLeft,
-  Droplets,
   Shield,
   MapPin,
   Clock,
@@ -20,6 +19,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import toast from "react-hot-toast";
 import type { BloodType, UrgencyLevel } from "@/types";
 import { BLOOD_TYPES } from "@/types";
+import { supabase } from "@/utils/supabaseClient";
 
 interface SeekerRequestFormValues {
   seeker_email: string;
@@ -32,19 +32,69 @@ interface SeekerRequestFormValues {
   note: string;
 }
 
-// Mock donor data (in real app, fetched from API)
-const MOCK_DONOR = {
-  display_id: "Donor #482",
-  blood_type: "O-",
-  distance_km: 1.2,
-  verification_badge: true,
-  availability_status: "available" as const,
-};
+interface DonorDetails {
+  id?: string;
+  display_id: string;
+  blood_type: BloodType;
+  distance_km: number;
+  verification_badge: boolean;
+  availability_status: string;
+}
 
 export default function SeekerRequestForm() {
   const { donorId } = useParams<{ donorId: string }>();
   const navigate = useNavigate();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [loadingDonor, setLoadingDonor] = useState(true);
+  const [donorDetails, setDonorDetails] = useState<DonorDetails>({
+    display_id: donorId ? `Donor #${donorId}` : "Donor #482",
+    blood_type: "O-",
+    distance_km: 1.2,
+    verification_badge: true,
+    availability_status: "available",
+  });
+
+  // Fetch donor details from Supabase if available
+  useEffect(() => {
+    async function fetchDonor() {
+      if (!donorId) {
+        setLoadingDonor(false);
+        return;
+      }
+
+      try {
+        setLoadingDonor(true);
+        const cleanId = donorId.replace(/^Donor #/i, "").trim();
+        const { data, error } = await supabase
+          .from("users")
+          .select("*")
+          .or(`id.eq.${donorId},display_id.eq.${donorId},display_id.eq.USR${cleanId.padStart(4, '0')},display_id.eq.Donor #${cleanId}`)
+          .maybeSingle();
+
+        if (data && !error) {
+          setDonorDetails({
+            id: data.id,
+            display_id: data.display_id || `Donor #${cleanId}`,
+            blood_type: (data.blood_type as BloodType) || "O-",
+            distance_km: 1.2,
+            verification_badge: Boolean(data.is_verified),
+            availability_status: data.availability_status || "available",
+          });
+        } else {
+          setDonorDetails((prev) => ({
+            ...prev,
+            display_id: donorId.includes("-") ? `Donor #${donorId.slice(0, 6)}` : `Donor #${cleanId}`,
+          }));
+        }
+      } catch (err) {
+        console.error("Error fetching donor info:", err);
+      } finally {
+        setLoadingDonor(false);
+      }
+    }
+
+    fetchDonor();
+  }, [donorId]);
 
   const {
     register,
@@ -68,19 +118,83 @@ export default function SeekerRequestForm() {
 
     setIsSubmitting(true);
 
-    // Simulate API call
-    setTimeout(() => {
-      setIsSubmitting(false);
+    try {
+      const now = new Date();
+      let expirationHours = 24;
+      if (data.urgency === "within_hours") expirationHours = 2;
+      else if (data.urgency === "within_day") expirationHours = 24;
+      else if (data.urgency === "planning_ahead") expirationHours = 168;
+
+      const expiresAt = new Date(now.getTime() + expirationHours * 60 * 60 * 1000).toISOString();
+
+      const combinedNotes = [
+        data.hospital_area ? `Hospital Area: ${data.hospital_area}` : "",
+        data.note ? `Note: ${data.note}` : "",
+      ]
+        .filter(Boolean)
+        .join(" | ");
+
+      // 1. Insert into 'requests' table
+      const requestPayload = {
+        seeker_email: data.seeker_email,
+        seeker_phone: data.seeker_phone || null,
+        blood_type_needed: data.blood_type_needed,
+        units_needed: data.units_needed,
+        urgency_level: data.urgency,
+        hospital_name: data.hospital_name,
+        notes: combinedNotes,
+        status: "active",
+        is_verified: false,
+        created_at: now.toISOString(),
+        expires_at: expiresAt,
+      };
+
+      const { data: insertedRequest, error: requestError } = await supabase
+        .from("requests")
+        .insert(requestPayload)
+        .select()
+        .single();
+
+      if (requestError) {
+        console.error("Error inserting request into Supabase:", requestError);
+        toast.error(`Failed to send request: ${requestError.message}`);
+        setIsSubmitting(false);
+        return;
+      }
+
+      // 2. Insert into 'request_matches' table if donor ID is available
+      const donorDbId = donorDetails.id || (donorId && donorId.includes("-") ? donorId : null);
+      if (insertedRequest?.id && donorDbId) {
+        const { error: matchError } = await supabase.from("request_matches").insert({
+          request_id: insertedRequest.id,
+          donor_id: donorDbId,
+          status: "notified",
+          notified_at: now.toISOString(),
+          created_at: now.toISOString(),
+        });
+
+        if (matchError) {
+          console.warn("Could not record request match:", matchError.message);
+        }
+      }
+
       toast.success("Request sent! The donor will be notified.");
+
       navigate("/seeker/confirmation", {
         state: {
-          donorId: donorId,
+          requestId: insertedRequest?.id,
+          donorId: donorDetails.display_id,
           bloodType: data.blood_type_needed,
           hospital: data.hospital_name,
           email: data.seeker_email,
         },
       });
-    }, 1500);
+    } catch (err: any) {
+      console.error("Unexpected error submitting request:", err);
+      toast.error(err?.message || "An unexpected error occurred while sending the request.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -101,25 +215,31 @@ export default function SeekerRequestForm() {
         {/* Donor info card */}
         <Card className="mb-6">
           <CardContent className="p-5">
-            <div className="flex items-center gap-3">
-              <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center font-bold text-primary">
-                {MOCK_DONOR.blood_type}
+            {loadingDonor ? (
+              <div className="flex items-center justify-center py-4 text-gray-500 gap-2">
+                <Loader2 className="h-4 w-4 animate-spin" /> Loading donor details...
               </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="font-semibold text-dark">{MOCK_DONOR.display_id}</span>
-                  {MOCK_DONOR.verification_badge && (
-                    <Badge variant="success" className="gap-1 text-xs">
-                      <BadgeCheck className="h-3 w-3" /> Verified
-                    </Badge>
-                  )}
+            ) : (
+              <div className="flex items-center gap-3">
+                <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center font-bold text-primary">
+                  {donorDetails.blood_type}
                 </div>
-                <p className="text-sm text-gray-500">
-                  <MapPin className="h-3 w-3 inline mr-1" />
-                  {MOCK_DONOR.distance_km.toFixed(1)} km away • Available now
-                </p>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold text-dark">{donorDetails.display_id}</span>
+                    {donorDetails.verification_badge && (
+                      <Badge variant="success" className="gap-1 text-xs">
+                        <BadgeCheck className="h-3 w-3" /> Verified
+                      </Badge>
+                    )}
+                  </div>
+                  <p className="text-sm text-gray-500">
+                    <MapPin className="h-3 w-3 inline mr-1" />
+                    {donorDetails.distance_km.toFixed(1)} km away • {donorDetails.availability_status}
+                  </p>
+                </div>
               </div>
-            </div>
+            )}
           </CardContent>
         </Card>
 

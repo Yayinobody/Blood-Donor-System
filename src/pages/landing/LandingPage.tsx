@@ -667,14 +667,14 @@ function HeroSearchSection({
                     size="sm"
                     variant="outline"
                     onClick={() => {
-                      toast.info('Please enable location in your browser settings and refresh the page.');
+                      toast('Please enable location in your browser settings and refresh the page.');
                       // Open browser settings or show instructions
                       if (navigator.userAgent.includes('Chrome')) {
-                        toast.info('Chrome: Click the lock icon in the address bar → Site settings → Location → Allow');
+                        toast('Chrome: Click the lock icon in the address bar → Site settings → Location → Allow');
                       } else if (navigator.userAgent.includes('Firefox')) {
-                        toast.info('Firefox: Click the shield icon → Clear cookies and site data → Reload');
+                        toast('Firefox: Click the shield icon → Clear cookies and site data → Reload');
                       } else if (navigator.userAgent.includes('Safari')) {
-                        toast.info('Safari: Safari → Preferences → Websites → Location → Allow');
+                        toast('Safari: Safari → Preferences → Websites → Location → Allow');
                       }
                     }}
                   >
@@ -916,7 +916,6 @@ function MapView({
                 ` : ''}
               </div>
             `,
-            className: "radius-marker",
             iconSize: [50, 50],
             iconAnchor: [25, 25],
           })}
