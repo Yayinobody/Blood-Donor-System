@@ -92,8 +92,8 @@ export default function RegisterPage() {
         userLocation?.lat ?? null,
         userLocation?.lng ?? null
       );
-      toast.success('Account created! Welcome to AnonBlood.');
-      navigate('/dashboard');
+      toast.success('Account created! Check your email to verify your account.');
+      navigate(`/verify-email-pending?email=${encodeURIComponent(data.email)}`);
     } catch (err: any) {
       toast.error(err.message || 'Registration failed. Please try again.');
     } finally {
