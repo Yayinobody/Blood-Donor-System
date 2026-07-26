@@ -4,9 +4,11 @@ export interface VerificationGateResult {
   isCleared: boolean;
   donorVerified: boolean;
   seekerVerified: boolean;
+  donorEligible: boolean;
   unverifiedParty: "none" | "donor" | "seeker" | "both";
   donorDisplayId?: string;
   seekerEmail?: string;
+  reason?: string;
 }
 
 export interface ContactRevealData {
@@ -17,15 +19,16 @@ export interface ContactRevealData {
   donor_full_name?: string | null;
   donor_email?: string | null;
   donor_phone?: string | null;
+  donor_display_id?: string;
 }
 
 /**
- * contactRevealService: The single security choke point that checks both parties'
- * verification status and match acceptance before revealing contact information.
+ * contactRevealService: The security choke point enforcing mutual light verification,
+ * donor medical eligibility, atomic DB reveal, and audit logging.
  */
 export const contactRevealService = {
   /**
-   * Check if both donor and seeker clear the minimum (light) verification gate.
+   * Check if both donor and seeker clear minimum light verification and eligibility conditions.
    */
   async checkVerificationGate(matchId: string): Promise<VerificationGateResult> {
     try {
@@ -39,7 +42,9 @@ export const contactRevealService = {
             id,
             display_id,
             is_verified,
-            verification_method
+            verification_method,
+            availability_status,
+            next_eligible_date
           ),
           requests:request_id (
             id,
@@ -57,22 +62,36 @@ export const contactRevealService = {
       const donor = Array.isArray(match.users) ? match.users[0] : match.users;
       const request = Array.isArray(match.requests) ? match.requests[0] : match.requests;
 
-      // Light verification check: email or phone verified
+      // Light verification check
       const donorVerified = Boolean(donor?.is_verified || donor?.verification_method);
       const seekerVerified = Boolean(request?.is_verified);
+
+      // Eligibility check
+      const isResting = donor?.availability_status === "resting";
+      const restExpired = donor?.next_eligible_date ? new Date(donor.next_eligible_date) <= new Date() : true;
+      const donorEligible = !isResting || restExpired;
 
       let unverifiedParty: "none" | "donor" | "seeker" | "both" = "none";
       if (!donorVerified && !seekerVerified) unverifiedParty = "both";
       else if (!donorVerified) unverifiedParty = "donor";
       else if (!seekerVerified) unverifiedParty = "seeker";
 
+      let reason = "";
+      if (!donorEligible) {
+        reason = "Donor is currently in a mandatory medical rest period.";
+      } else if (!donorVerified || !seekerVerified) {
+        reason = `Light verification required for: ${unverifiedParty}.`;
+      }
+
       return {
-        isCleared: donorVerified && seekerVerified,
+        isCleared: donorVerified && seekerVerified && donorEligible,
         donorVerified,
         seekerVerified,
+        donorEligible,
         unverifiedParty,
         donorDisplayId: donor?.display_id,
         seekerEmail: request?.seeker_email,
+        reason,
       };
     } catch (err: any) {
       console.error("Error in checkVerificationGate:", err.message);
@@ -80,91 +99,39 @@ export const contactRevealService = {
         isCleared: false,
         donorVerified: false,
         seekerVerified: false,
+        donorEligible: false,
         unverifiedParty: "both",
+        reason: err.message,
       };
     }
   },
 
   /**
-   * Execute contact reveal once verification gate is cleared.
-   * Logs the reveal event to contact_reveal_audit and triggers email notification.
+   * Execute atomic contact reveal via DB RPC `reveal_contact_and_log_atomically`.
+   * Verifies gates, updates match status to 'contact_revealed', logs to contact_reveal_audit,
+   * and triggers notify-seeker Edge Function.
    */
   async revealContact(matchId: string, userAgent?: string): Promise<ContactRevealData> {
-    // 1. Check gate
-    const gateStatus = await this.checkVerificationGate(matchId);
-    if (!gateStatus.isCleared) {
-      throw new Error(
-        `Contact reveal blocked: ${gateStatus.unverifiedParty} has not completed light verification.`
-      );
+    const ua = userAgent || (typeof navigator !== "undefined" ? navigator.userAgent : "web-app");
+
+    // 1. Call atomic DB RPC
+    const { data: rpcResult, error: rpcErr } = await supabase.rpc("reveal_contact_and_log_atomically", {
+      p_match_id: matchId,
+      p_user_agent: ua,
+    });
+
+    if (rpcErr || !rpcResult?.success) {
+      throw new Error(rpcErr?.message || rpcResult?.message || "Failed to reveal contact information.");
     }
 
-    // 2. Fetch full match details
-    const { data: match, error: fetchErr } = await supabase
-      .from("request_matches")
-      .select(`
-        id,
-        donor_id,
-        request_id,
-        users:donor_id (
-          id,
-          full_name,
-          email,
-          phone,
-          display_id
-        ),
-        requests:request_id (
-          id,
-          seeker_name,
-          seeker_email,
-          seeker_phone,
-          blood_type_needed,
-          hospital_name,
-          urgency_level
-        )
-      `)
-      .eq("id", matchId)
-      .single();
+    const data = rpcResult.data;
 
-    if (fetchErr || !match) {
-      throw new Error(fetchErr?.message || "Failed to load match data for reveal");
-    }
-
-    const donor = Array.isArray(match.users) ? match.users[0] : match.users;
-    const request = Array.isArray(match.requests) ? match.requests[0] : match.requests;
-
-    // 3. Update match record to contact_revealed
-    const { error: updateErr } = await supabase
-      .from("request_matches")
-      .update({
-        status: "contact_revealed",
-        contact_revealed: true,
-        revealed_at: new Date().toISOString(),
-        responded_at: new Date().toISOString(),
-      })
-      .eq("id", matchId);
-
-    if (updateErr) {
-      throw new Error(`Failed to update match status: ${updateErr.message}`);
-    }
-
-    // 4. Log reveal event to contact_reveal_audit
-    try {
-      await supabase.from("contact_reveal_audit").insert({
-        request_id: match.request_id,
-        donor_id: match.donor_id,
-        seeker_email: request.seeker_email,
-        reveal_timestamp: new Date().toISOString(),
-        user_agent: userAgent || (typeof navigator !== "undefined" ? navigator.userAgent : "web-app"),
-      });
-    } catch (auditErr: any) {
-      console.warn("Audit logging warning:", auditErr.message);
-    }
-
-    // 5. Trigger notification email to seeker via Edge Function
+    // 2. Trigger notification email to seeker via Edge Function
     try {
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
       const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-      if (supabaseUrl && supabaseAnonKey) {
+
+      if (supabaseUrl && supabaseAnonKey && data?.seeker_email) {
         fetch(`${supabaseUrl}/functions/v1/notify-seeker`, {
           method: "POST",
           headers: {
@@ -172,26 +139,49 @@ export const contactRevealService = {
             Authorization: `Bearer ${supabaseAnonKey}`,
           },
           body: JSON.stringify({
-            seeker_email: request.seeker_email,
-            blood_type_needed: request.blood_type_needed,
-            hospital_name: request.hospital_name,
-            donor_display_id: donor.display_id,
-            urgency_level: request.urgency_level,
+            seeker_email: data.seeker_email,
+            hospital_name: data.hospital_name,
+            donor_display_id: data.donor_display_id,
           }),
-        }).catch((err) => console.warn("Notify edge function call failed:", err));
+        }).catch((err) => console.warn("Notify edge function notice:", err));
       }
     } catch (e) {
-      console.warn("Notification error:", e);
+      console.warn("Notification trigger error:", e);
     }
 
     return {
-      seeker_name: request.seeker_name || "Blood Seeker",
-      seeker_email: request.seeker_email,
-      seeker_phone: request.seeker_phone || null,
-      hospital_name: request.hospital_name || "Hospital",
-      donor_full_name: donor.full_name || donor.display_id,
-      donor_email: donor.email,
-      donor_phone: donor.phone || null,
+      seeker_name: data.seeker_name,
+      seeker_email: data.seeker_email,
+      seeker_phone: data.seeker_phone,
+      hospital_name: data.hospital_name,
+      donor_full_name: data.donor_full_name,
+      donor_email: data.donor_email,
+      donor_phone: data.donor_phone,
+      donor_display_id: data.donor_display_id,
     };
+  },
+
+  /**
+   * Complete donation atomically via DB RPC `complete_donation_atomically`.
+   * Marks request fulfilled, match accepted, logs donation, and sets donor resting period (+84 days).
+   */
+  async completeDonation(
+    matchId: string,
+    donorId: string,
+    notes?: string,
+    volumeMl: number = 450
+  ): Promise<boolean> {
+    const { data, error } = await supabase.rpc("complete_donation_atomically", {
+      p_match_id: matchId,
+      p_donor_id: donorId,
+      p_notes: notes || null,
+      p_volume_ml: volumeMl,
+    });
+
+    if (error || !data?.success) {
+      throw new Error(error?.message || "Failed to complete donation atomically.");
+    }
+
+    return true;
   },
 };

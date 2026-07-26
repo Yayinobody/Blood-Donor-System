@@ -30,6 +30,7 @@ import toast from "react-hot-toast";
 import type { RequestMatch, UrgencyLevel } from "@/types";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/utils/supabaseClient";
+import { CalibrateLocationButton } from "@/components/ui/CalibrateLocationButton";
 
 // Mock incoming requests fallback
 const MOCK_REQUESTS: (RequestMatch & {
@@ -163,11 +164,14 @@ export default function DonorDashboard() {
             ID: <span className="font-medium text-gray-700">{displayId}</span> • Blood type: <span className="font-semibold text-primary">{bloodType}</span>
           </div>
         </div>
-        <Link to="/donor/profile">
-          <Button variant="outline" className="gap-2">
-            <Settings className="h-4 w-4" /> Manage Profile
-          </Button>
-        </Link>
+        <div className="flex items-center gap-2">
+          <CalibrateLocationButton />
+          <Link to="/donor/profile">
+            <Button variant="outline" className="gap-2">
+              <Settings className="h-4 w-4" /> Manage Profile
+            </Button>
+          </Link>
+        </div>
       </div>
 
       {/* Stats cards */}

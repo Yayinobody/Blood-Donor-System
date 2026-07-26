@@ -126,13 +126,35 @@ export default function ConnectScreen() {
     }
   };
 
+  const handleSendOtp = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      const targetEmail = user?.email || matchData?.requests?.seeker_email;
+      if (!targetEmail) {
+        toast.error("No valid email address found for verification.");
+        return;
+      }
+      const tokenType = user?.email ? "donor_verification" : "seeker_verification";
+      const targetId = user?.id || matchData?.request_id;
+      
+      await verificationService.requestVerificationOtp(targetEmail, tokenType, targetId);
+      setOtpSent(true);
+      toast.success(`Verification code sent to ${targetEmail}`);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to send verification code.");
+    }
+  };
+
   const handleInlineOtpVerification = async () => {
     if (!otpCode || otpCode.length < 4 || !matchId) return;
     setVerifyingOtp(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      if (user?.email) {
-        await verificationService.verifyEmailOtp(user.email, otpCode, user.id);
+      const targetEmail = user?.email || matchData?.requests?.seeker_email;
+      if (targetEmail) {
+        const tokenType = user?.email ? "donor_verification" : "seeker_verification";
+        const targetId = user?.id || matchData?.request_id;
+        await verificationService.verifyEmailOtp(targetEmail, otpCode, user?.id, tokenType, targetId);
       }
 
       // Re-check gate
@@ -151,7 +173,7 @@ export default function ConnectScreen() {
       }
     } catch (err: any) {
       console.error("OTP Verification Error:", err.message);
-      toast.error("Invalid verification code. Try '123456' or resend code.");
+      toast.error(err.message || "Invalid or expired verification code.");
     } finally {
       setVerifyingOtp(false);
     }
@@ -159,24 +181,18 @@ export default function ConnectScreen() {
 
   const handleMarkFulfilled = async () => {
     try {
-      await supabase
-        .from("request_matches")
-        .update({ status: "accepted" })
-        .eq("id", matchId);
-
-      if (matchData?.request_id) {
-        await supabase
-          .from("requests")
-          .update({ status: "fulfilled" })
-          .eq("id", matchData.request_id);
+      const donorId = matchData?.donor_id;
+      if (!matchId || !donorId) {
+        throw new Error("Missing match or donor information.");
       }
+      await contactRevealService.completeDonation(matchId, donorId);
 
       setStep("fulfilled");
       toast.success("Donation marked as fulfilled. Thank you!");
       setTimeout(() => navigate("/dashboard"), 2500);
     } catch (err: any) {
       console.error("Fulfill error:", err.message);
-      toast.error("Failed to mark as fulfilled.");
+      toast.error(err.message || "Failed to mark as fulfilled.");
     }
   };
 
@@ -305,18 +321,15 @@ export default function ConnectScreen() {
                   <div className="space-y-4 max-w-sm mx-auto">
                     {!otpSent ? (
                       <Button
-                        onClick={() => {
-                          setOtpSent(true);
-                          toast.success("Verification code sent! (Use demo code: 123456)");
-                        }}
+                        onClick={handleSendOtp}
                         className="w-full bg-primary"
                       >
-                        Send OTP Code
+                        Send Verification Code
                       </Button>
                     ) : (
                       <div className="space-y-3">
                         <Input
-                          placeholder="Enter 6-digit OTP code (e.g. 123456)"
+                          placeholder="Enter 6-digit verification code"
                           value={otpCode}
                           onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
                           className="text-center text-lg tracking-widest"

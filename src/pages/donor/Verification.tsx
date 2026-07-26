@@ -160,9 +160,15 @@ function LightVerification() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => {
-                  setEmailSent(true);
-                  toast.success("Code sent to your email (Demo code: 123456)");
+                onClick={async () => {
+                  if (!user?.email) return;
+                  try {
+                    await verificationService.requestVerificationOtp(user.email, "donor_verification", user.id);
+                    setEmailSent(true);
+                    toast.success("Verification code sent to your email.");
+                  } catch (err: any) {
+                    toast.error(err.message || "Failed to send verification code.");
+                  }
                 }}
               >
                 Send Code
@@ -170,7 +176,7 @@ function LightVerification() {
             ) : (
               <div className="flex gap-2">
                 <Input
-                  placeholder="Enter 6-digit OTP code (e.g. 123456)"
+                  placeholder="Enter 6-digit verification code"
                   value={emailOtp}
                   onChange={(e) => setEmailOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
                   className="flex-1"

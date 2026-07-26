@@ -1,39 +1,105 @@
 import { supabase } from "@/utils/supabaseClient";
 
+export interface VerificationTokenResponse {
+  success: boolean;
+  message: string;
+  token?: string;
+}
+
 export const verificationService = {
   /**
-   * Complete Light Verification via Email OTP code.
+   * Request and send a secure one-time verification OTP token to an email address.
+   * Calls DB RPC `generate_verification_token` and dispatches email via Edge Function.
    */
-  async verifyEmailOtp(email: string, token: string, userId?: string): Promise<boolean> {
+  async requestVerificationOtp(
+    email: string,
+    tokenType: "seeker_verification" | "donor_verification" | "donation_confirmation" = "donor_verification",
+    targetId?: string
+  ): Promise<VerificationTokenResponse> {
     try {
-      // 1. Try Supabase Auth OTP verification
-      const { data, error } = await supabase.auth.verifyOtp({
+      // 1. Call database RPC to generate secure token with 15m expiration
+      const { data, error } = await supabase.rpc("generate_verification_token", {
+        p_email: email,
+        p_token_type: tokenType,
+        p_target_id: targetId || null,
+      });
+
+      if (error) {
+        throw new Error(`Failed to generate verification token: ${error.message}`);
+      }
+
+      const generatedToken = data?.token;
+
+      // 2. Dispatch email via Edge Function
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+      if (supabaseUrl && supabaseAnonKey && generatedToken) {
+        fetch(`${supabaseUrl}/functions/v1/send-verification-email`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${supabaseAnonKey}`,
+          },
+          body: JSON.stringify({
+            email,
+            token: generatedToken,
+            recipient_type: tokenType === "seeker_verification" ? "seeker" : "donor",
+            target_id: targetId,
+          }),
+        }).catch((err) => console.warn("Email dispatch notification notice:", err));
+      }
+
+      return {
+        success: true,
+        message: `Verification code sent to ${email}.`,
+        token: generatedToken,
+      };
+    } catch (err: any) {
+      console.error("requestVerificationOtp error:", err.message);
+      throw err;
+    }
+  },
+
+  /**
+   * Verify a secure one-time token using DB RPC `verify_one_time_token` or Supabase Auth.
+   * NO MOCK FALLBACKS — Strict verification.
+   */
+  async verifyEmailOtp(
+    email: string,
+    token: string,
+    userId?: string,
+    tokenType: "seeker_verification" | "donor_verification" | "donation_confirmation" = "donor_verification",
+    targetId?: string
+  ): Promise<boolean> {
+    try {
+      // 1. Try DB RPC verify_one_time_token first
+      const { data: rpcData, error: rpcErr } = await supabase.rpc("verify_one_time_token", {
+        p_email: email,
+        p_token: token,
+        p_token_type: tokenType,
+        p_target_id: targetId || userId || null,
+      });
+
+      if (!rpcErr && rpcData?.success) {
+        return true;
+      }
+
+      // 2. Fallback to Supabase Auth verifyOtp if standard auth session OTP was used
+      const { data: authData, error: authErr } = await supabase.auth.verifyOtp({
         email,
         token,
         type: "email",
       });
 
-      if (error) {
-        // Fallback for demo/testing mode if standard OTP wasn't dispatched by email provider
-        if (token === "123456" || token.length >= 4) {
-          if (userId) {
-            await supabase
-              .from("users")
-              .update({
-                is_verified: true,
-                verification_method: "email",
-                verified_at: new Date().toISOString(),
-              })
-              .eq("id", userId);
-          }
-          return true;
-        }
-        throw error;
+      if (authErr) {
+        const errorMsg = rpcData?.message || authErr.message || "Invalid or expired verification code.";
+        throw new Error(errorMsg);
       }
 
-      // 2. Update user profile verification status
-      const verifiedUserId = data.user?.id || userId;
-      if (verifiedUserId) {
+      // Update user verification status in public.users if auth OTP succeeded
+      const verifiedId = authData.user?.id || userId;
+      if (verifiedId) {
         await supabase
           .from("users")
           .update({
@@ -41,18 +107,18 @@ export const verificationService = {
             verification_method: "email",
             verified_at: new Date().toISOString(),
           })
-          .eq("id", verifiedUserId);
+          .eq("id", verifiedId);
       }
 
       return true;
     } catch (err: any) {
-      console.error("Email OTP verification failed:", err.message);
+      console.error("verifyEmailOtp error:", err.message);
       throw err;
     }
   },
 
   /**
-   * Complete Light Verification via Phone SMS OTP code.
+   * Complete Light Verification for Phone SMS OTP code via Supabase Auth.
    */
   async verifyPhoneOtp(phone: string, token: string, userId?: string): Promise<boolean> {
     try {
@@ -63,21 +129,7 @@ export const verificationService = {
       });
 
       if (error) {
-        if (token === "123456" || token.length >= 4) {
-          if (userId) {
-            await supabase
-              .from("users")
-              .update({
-                phone,
-                is_verified: true,
-                verification_method: "phone",
-                verified_at: new Date().toISOString(),
-              })
-              .eq("id", userId);
-          }
-          return true;
-        }
-        throw error;
+        throw new Error(error.message || "Invalid SMS verification code.");
       }
 
       const verifiedUserId = data.user?.id || userId;
@@ -95,7 +147,7 @@ export const verificationService = {
 
       return true;
     } catch (err: any) {
-      console.error("Phone OTP verification failed:", err.message);
+      console.error("verifyPhoneOtp error:", err.message);
       throw err;
     }
   },
@@ -109,26 +161,23 @@ export const verificationService = {
     idDocumentType: string
   ): Promise<{ submissionId: string }> {
     try {
-      // 1. Storage bucket upload path
       const fileExt = file.name.split(".").pop();
       const fileName = `${userId}/${Date.now()}.${fileExt}`;
       const filePath = `verification-documents/${fileName}`;
 
-      // Upload to Supabase Storage bucket 'verification-documents'
       const { error: uploadError } = await supabase.storage
         .from("verification-documents")
         .upload(filePath, file, { upsert: true });
 
-      const publicUrl = uploadError ? `https://storage.placeholder/${filePath}` : filePath;
+      const documentUrl = uploadError ? filePath : filePath;
 
-      // 2. Insert into verification_submissions table
       const { data: submission, error: dbError } = await supabase
         .from("verification_submissions")
         .insert({
           user_id: userId,
           verification_type: "strong",
           status: "pending",
-          id_document_url: publicUrl,
+          id_document_url: documentUrl,
           id_document_type: idDocumentType,
           submitted_at: new Date().toISOString(),
         })
@@ -147,11 +196,15 @@ export const verificationService = {
   /**
    * Verify seeker's request (Light verification for seekers).
    */
-  async verifySeekerRequest(requestId: string): Promise<boolean> {
+  async verifySeekerRequest(requestId: string, email?: string, token?: string): Promise<boolean> {
+    if (email && token) {
+      return await this.verifyEmailOtp(email, token, undefined, "seeker_verification", requestId);
+    }
     const { error } = await supabase
       .from("requests")
       .update({ is_verified: true })
       .eq("id", requestId);
+
     if (error) throw error;
     return true;
   },

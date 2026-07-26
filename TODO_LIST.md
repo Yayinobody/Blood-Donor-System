@@ -21,14 +21,24 @@
   - Auto-update donor status and eligibility upon completed donation (`handle_new_donation()`).
   - Auto-update donor verification status upon admin submission approval (`handle_verification_submission_approval()`).
   - Automated donor eligibility window reset procedure (`reset_donor_eligibility()`).
-  - Secure contact reveal & audit logging function (`reveal_contact_and_log()`).
+  - Secure contact reveal & audit logging function (`reveal_contact_and_log_atomically()`).
   - Rate limiting check & logging helper (`check_and_log_rate_limit()`).
   - Expiry function for blood requests and unaccepted matches (`expire_requests_and_matches()`).
   - Spatial & blood-type compatible donor discovery function (`get_compatible_donors()`).
   - Automated background job scheduling via `pg_cron`.
+  - Secure one-time verification token generation & validation (`generate_verification_token()`, `verify_one_time_token()`).
+  - Atomic donation completion & rest period trigger (`complete_donation_atomically()`).
+  - Donor GPS location calibration procedure (`update_donor_location()`).
 - [x] **Wire Strong Verification Admin Review Queue**: Dedicated admin interface (`AdminVerifications.tsx`) for reviewing government ID uploads.
 - [x] **Implement `eligibilityService` & Scheduled Job**: Log donations, enforce 84-day WHO/DOH minimum rest period, and automate eligibility status resets.
 - [x] **Implement `rateLimiter` Middleware**: Enforce 3/day blood request limits per identifier and 50/day AI query limits; integrate with `RequestForm.tsx`.
+- [x] **Production Verification & Contact Reveal Workflow**:
+  - Replaced all mock OTP codes (`123456`) and timeouts with secure, 15-minute expiring one-time tokens in `public.verification_tokens`.
+  - Created Supabase Edge Function `send-verification-email` to dispatch email tokens.
+  - Implemented atomic contact reveal and donation completion in Postgres DB.
+- [x] **Calibrate Location Feature**:
+  - Integrated browser Geolocation API via `locationService.ts` and `CalibrateLocationButton.tsx`.
+  - Updates `users` table coordinates and reflects in spatial matching / distance calculations.
 
 ---
 
@@ -52,7 +62,7 @@
 
 ## 💡 Recommended Execution Sequence
 
-1. **Deploy & Apply Migration Files**: Apply database migrations (`20260726000000` through `20260726000003`) via `supabase db push`.
-2. **Deploy `reset-eligibility` Edge Function**: Ensure background cron trigger calls `reset_donor_eligibility()`.
+1. **Deploy & Apply Migration Files**: Apply database migrations (`20260726000000` through `20260726000004`) via `supabase db push`.
+2. **Deploy Edge Functions**: Deploy `send-verification-email`, `notify-seeker`, and `reset-eligibility` via `supabase functions deploy`.
 3. **Extend AI Assistant**: Complete authenticated personal query mode in `RAG/api.py`.
 4. **Implement Automated Match Expiry**: Wire match expiry background job for cascading donor fallback.

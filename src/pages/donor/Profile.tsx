@@ -13,6 +13,7 @@ import toast from "react-hot-toast";
 import type { AvailabilityStatus } from "@/types";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/utils/supabaseClient";
+import { CalibrateLocationButton } from "@/components/ui/CalibrateLocationButton";
 
 export default function DonorProfile() {
   const { user, profile, refreshProfile } = useAuth();
@@ -213,7 +214,10 @@ export default function DonorProfile() {
         {/* Right column */}
         <div className="lg:col-span-2 space-y-6">
           <Card>
-            <CardHeader><CardTitle>Personal Details</CardTitle></CardHeader>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle>Personal Details</CardTitle>
+              <CalibrateLocationButton />
+            </CardHeader>
             <CardContent className="space-y-4">
               <ProfileField icon={Mail} label="Email" value={user?.email || "—"} editing={false} />
               <ProfileField
@@ -225,8 +229,18 @@ export default function DonorProfile() {
                 onChange={(e) => setForm({ ...form, phone: e.target.value })}
               />
               <ProfileField
-                icon={MapPin} label="City" value={form.city} editing={editing}
+                icon={MapPin} label="City / Barangay" value={[form.barangay, form.city].filter(Boolean).join(", ") || ""} editing={editing}
                 onChange={(e) => setForm({ ...form, city: e.target.value })}
+              />
+              <ProfileField
+                icon={MapPin}
+                label="Calibrated GPS Coordinates"
+                value={
+                  profile?.latitude && profile?.longitude
+                    ? `${Number(profile.latitude).toFixed(4)}°, ${Number(profile.longitude).toFixed(4)}°`
+                    : "Not calibrated yet"
+                }
+                editing={false}
               />
               <ProfileField icon={Shield} label="Verification" value={profile?.is_verified ? "Verified" : "Not Verified"} editing={false} />
             </CardContent>

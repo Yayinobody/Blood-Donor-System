@@ -79,7 +79,7 @@ export default function Footer() {
             <ul className="mt-4 space-y-3">
               <li className="flex items-start space-x-2 text-sm text-gray-400">
                 <MapPin className="mt-0.5 h-4 w-4 flex-shrink-0 text-primary" />
-                <span>Negros Polymedic Hospital</span>
+                <span>Anon Blood</span>
               </li>
               <li className="flex items-center space-x-2 text-sm text-gray-400">
                 <Phone className="h-4 w-4 flex-shrink-0 text-primary" />
