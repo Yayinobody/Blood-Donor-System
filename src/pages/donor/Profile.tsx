@@ -22,28 +22,52 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { useEffect } from "react";
 import toast from "react-hot-toast";
 import type { AvailabilityStatus, BloodType } from "@/types";
 import { BLOOD_TYPES } from "@/types";
+import { supabase } from "@/utils/supabaseClient";
+import { useAuth } from "@/context/AuthContext";
 
 export default function DonorProfile() {
+  const { user, profile: authProfile, refreshProfile } = useAuth();
   const [editing, setEditing] = useState(false);
   const [availability, setAvailability] = useState<AvailabilityStatus>("available");
+  const [donationDateInput, setDonationDateInput] = useState(new Date().toISOString().split("T")[0]);
   const [profile, setProfile] = useState({
-    display_id: "Donor #482",
-    blood_type: "O-" as BloodType,
-    email: "j***@example.com",
-    phone: "+63 912 ••• ••••",
-    city: "Manila",
-    barangay: "Ermita",
-    verification_level: "strong" as const,
-    last_donation_date: "2026-04-20",
-    next_eligible_date: "2026-07-20",
+    display_id: authProfile?.display_id || "Donor #482",
+    blood_type: (authProfile?.blood_type as BloodType) || "O-",
+    email: authProfile?.email || "j***@example.com",
+    phone: authProfile?.phone || "+63 912 ••• ••••",
+    city: authProfile?.city || "Manila",
+    barangay: authProfile?.barangay || "Ermita",
+    verification_level: authProfile?.is_verified ? ("strong" as const) : ("light" as const),
+    last_donation_date: authProfile?.last_donation_date?.split("T")[0] || "2026-04-20",
+    next_eligible_date: authProfile?.next_eligible_date?.split("T")[0] || "2026-07-20",
     total_donations: 4,
     total_requests_fulfilled: 3,
   });
 
-  // Check if medical eligibility window is active
+  useEffect(() => {
+    if (authProfile) {
+      setProfile((prev) => ({
+        ...prev,
+        display_id: authProfile.display_id || prev.display_id,
+        blood_type: (authProfile.blood_type as BloodType) || prev.blood_type,
+        email: authProfile.email || prev.email,
+        phone: authProfile.phone || prev.phone,
+        city: authProfile.city || prev.city,
+        barangay: authProfile.barangay || prev.barangay,
+        verification_level: authProfile.is_verified ? "strong" : "light",
+        last_donation_date: authProfile.last_donation_date?.split("T")[0] || prev.last_donation_date,
+        next_eligible_date: authProfile.next_eligible_date?.split("T")[0] || prev.next_eligible_date,
+      }));
+      if (authProfile.availability_status) {
+        setAvailability(authProfile.availability_status as AvailabilityStatus);
+      }
+    }
+  }, [authProfile]);
+
   const today = new Date();
   const nextEligible = new Date(profile.next_eligible_date);
   const isMedicallyEligible = today >= nextEligible;
@@ -51,19 +75,47 @@ export default function DonorProfile() {
     (nextEligible.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
   );
 
-  const handleSave = () => {
+  const handleSave = async () => {
     setEditing(false);
+    if (user?.id) {
+      const { error } = await supabase
+        .from("users")
+        .update({
+          phone: profile.phone,
+          city: profile.city,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", user.id);
+
+      if (error) {
+        toast.error("Failed to update profile: " + error.message);
+        return;
+      }
+      await refreshProfile();
+    }
     toast.success("Profile updated successfully");
   };
 
-  const handleToggleAvailability = () => {
+  const handleToggleAvailability = async () => {
     if (availability === "resting" && !isMedicallyEligible) {
       toast.error("You cannot set yourself as available until your medical eligibility window ends.");
       return;
     }
     const newStatus: AvailabilityStatus =
       availability === "available" ? "unavailable" : "available";
+
     setAvailability(newStatus);
+    if (user?.id) {
+      await supabase
+        .from("users")
+        .update({
+          availability_status: newStatus,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", user.id);
+      await refreshProfile();
+    }
+
     toast.success(
       newStatus === "available"
         ? "You are now visible to seekers"
@@ -235,15 +287,46 @@ export default function DonorProfile() {
                 After donating, log it here. This updates your eligibility window automatically.
               </p>
               <div className="flex gap-3">
-                <Input type="date" defaultValue={today.toISOString().split("T")[0]} />
+                <Input
+                  type="date"
+                  value={donationDateInput}
+                  onChange={(e) => setDonationDateInput(e.target.value)}
+                />
                 <Button
-                  onClick={() => {
-                    const newDate = new Date();
-                    newDate.setDate(newDate.getDate() + 84); // 12 weeks
+                  onClick={async () => {
+                    const loggedDate = new Date(donationDateInput);
+                    const newEligibleDate = new Date(loggedDate);
+                    newEligibleDate.setDate(newEligibleDate.getDate() + 84); // 12 weeks
+
+                    const lastDonationStr = loggedDate.toISOString().split("T")[0];
+                    const nextEligibleStr = newEligibleDate.toISOString().split("T")[0];
+
+                    if (user?.id) {
+                      // Insert into 'donations' table
+                      await supabase.from("donations").insert({
+                        donor_id: user.id,
+                        donation_date: loggedDate.toISOString(),
+                        volume_ml: 450,
+                        status: "completed",
+                        notes: "Logged via donor profile",
+                        created_at: new Date().toISOString(),
+                      });
+
+                      // Update 'users' table
+                      await supabase.from("users").update({
+                        last_donation_date: loggedDate.toISOString(),
+                        next_eligible_date: newEligibleDate.toISOString(),
+                        availability_status: "resting",
+                        updated_at: new Date().toISOString(),
+                      }).eq("id", user.id);
+
+                      await refreshProfile();
+                    }
+
                     setProfile({
                       ...profile,
-                      last_donation_date: today.toISOString().split("T")[0],
-                      next_eligible_date: newDate.toISOString().split("T")[0],
+                      last_donation_date: lastDonationStr,
+                      next_eligible_date: nextEligibleStr,
                       total_donations: profile.total_donations + 1,
                     });
                     setAvailability("resting");

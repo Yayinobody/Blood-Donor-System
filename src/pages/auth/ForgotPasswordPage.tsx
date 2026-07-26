@@ -13,6 +13,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import toast from "react-hot-toast";
+import { supabase } from "@/utils/supabaseClient";
 
 interface ForgotPasswordForm {
   email: string;
@@ -30,11 +31,25 @@ export default function ForgotPasswordPage() {
 
   const onSubmit = async (data: ForgotPasswordForm) => {
     setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(data.email, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
+
+      if (error) {
+        toast.error(error.message || "Failed to send reset email.");
+        setIsLoading(false);
+        return;
+      }
+
       setSent(true);
       toast.success("Reset link sent to your email");
-    }, 1500);
+    } catch (err: any) {
+      console.error("Forgot password error:", err);
+      toast.error(err?.message || "An unexpected error occurred.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import {
   Calendar,
@@ -15,6 +15,8 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { supabase } from "@/utils/supabaseClient";
+import { useAuth } from "@/context/AuthContext";
 
 interface DonationRecord {
   id: string;
@@ -88,15 +90,47 @@ const container = {
 const item = { hidden: { opacity: 0, x: -20 }, show: { opacity: 1, x: 0 } };
 
 export default function DonorHistory() {
+  const { user } = useAuth();
+  const [history, setHistory] = useState<DonationRecord[]>(MOCK_HISTORY);
   const [filter, setFilter] = useState<"all" | "completed" | "cancelled">("all");
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
-  const filtered = MOCK_HISTORY.filter((d) =>
+  useEffect(() => {
+    async function loadDonations() {
+      if (!user?.id) return;
+      try {
+        const { data, error } = await supabase
+          .from("donations")
+          .select("*")
+          .eq("donor_id", user.id)
+          .order("donation_date", { ascending: false });
+
+        if (data && !error && data.length > 0) {
+          const mapped: DonationRecord[] = data.map((d: any) => ({
+            id: d.id,
+            date: d.donation_date?.split("T")[0] || d.created_at?.split("T")[0] || "2026-04-20",
+            hospital: "Blood Center",
+            location: "Manila",
+            blood_type: "O-",
+            units: Math.round((d.volume_ml || 450) / 450) || 1,
+            status: (d.status as "completed" | "cancelled") || "completed",
+            notes: d.notes || undefined,
+          }));
+          setHistory(mapped);
+        }
+      } catch (err) {
+        console.error("Error loading donations:", err);
+      }
+    }
+    loadDonations();
+  }, [user?.id]);
+
+  const filtered = history.filter((d) =>
     filter === "all" ? true : d.status === filter
   );
 
-  const completedCount = MOCK_HISTORY.filter((d) => d.status === "completed").length;
-  const totalUnits = MOCK_HISTORY.filter((d) => d.status === "completed").reduce(
+  const completedCount = history.filter((d) => d.status === "completed").length;
+  const totalUnits = history.filter((d) => d.status === "completed").reduce(
     (sum, d) => sum + d.units,
     0
   );

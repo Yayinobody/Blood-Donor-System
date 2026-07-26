@@ -18,6 +18,9 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import toast from "react-hot-toast";
 
+import { supabase } from "@/utils/supabaseClient";
+import { useAuth } from "@/context/AuthContext";
+
 type VerificationTab = "light" | "strong";
 
 export default function DonorVerification() {
@@ -87,10 +90,23 @@ export default function DonorVerification() {
 
 // --------------------- Light Verification ---------------------
 function LightVerification() {
+  const { user, refreshProfile } = useAuth();
   const [emailSent, setEmailSent] = useState(false);
   const [phoneSent, setPhoneSent] = useState(false);
   const [emailOtp, setEmailOtp] = useState("");
   const [phoneOtp, setPhoneOtp] = useState("");
+
+  const handleVerifyEmail = async () => {
+    if (user?.id) {
+      await supabase.from("users").update({
+        verification_method: "light_email",
+        verified_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }).eq("id", user.id);
+      await refreshProfile();
+    }
+    toast.success("Email verified!");
+  };
 
   return (
     <motion.div
@@ -113,7 +129,7 @@ function LightVerification() {
               <Badge variant="success" className="ml-auto">Done</Badge>
             </div>
             <p className="text-sm text-gray-500 mb-3">
-              We'll send a one-time code to <strong>j***@example.com</strong>
+              We'll send a one-time code to <strong>{user?.email || "your email"}</strong>
             </p>
             {!emailSent ? (
               <Button
@@ -136,7 +152,7 @@ function LightVerification() {
                 />
                 <Button
                   size="sm"
-                  onClick={() => toast.success("Email verified!")}
+                  onClick={handleVerifyEmail}
                   disabled={emailOtp.length < 4}
                 >
                   Verify
@@ -192,6 +208,7 @@ function LightVerification() {
 
 // --------------------- Strong Verification ---------------------
 function StrongVerification() {
+  const { user } = useAuth();
   const [file, setFile] = useState<File | null>(null);
   const [submitted, setSubmitted] = useState(false);
   const [status, setStatus] = useState<"idle" | "reviewing" | "approved">("idle");
@@ -202,14 +219,30 @@ function StrongVerification() {
     }
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!file) {
       toast.error("Please upload a valid ID");
       return;
     }
-    setSubmitted(true);
-    setStatus("reviewing");
-    toast.success("ID submitted for review. This usually takes 24-48 hours.");
+    try {
+      if (user?.id) {
+        // Insert into verification_submissions table
+        await supabase.from("verification_submissions").insert({
+          user_id: user.id,
+          verification_type: "strong_id",
+          status: "reviewing",
+          id_document_url: file.name,
+          id_document_type: file.type || "government_id",
+          submitted_at: new Date().toISOString(),
+        });
+      }
+      setSubmitted(true);
+      setStatus("reviewing");
+      toast.success("ID submitted for review. This usually takes 24-48 hours.");
+    } catch (err: any) {
+      console.error("Submission error:", err);
+      toast.error(err?.message || "Failed to submit ID");
+    }
   };
 
   return (

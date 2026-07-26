@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -19,6 +19,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import toast from "react-hot-toast";
 import type { RequestMatch, UrgencyLevel, BloodType } from "@/types";
+import { supabase } from "@/utils/supabaseClient";
+import { useAuth } from "@/context/AuthContext";
 
 interface RequestWithDetails extends RequestMatch {
   blood_type_needed: BloodType;
@@ -113,29 +115,90 @@ const container = {
 const item = { hidden: { opacity: 0, y: 15 }, show: { opacity: 1, y: 0 } };
 
 export default function DonorRequests() {
-  const [requests, setRequests] = useState(MOCK_ALL_REQUESTS);
+  const { user } = useAuth();
+  const [requests, setRequests] = useState<RequestWithDetails[]>(MOCK_ALL_REQUESTS);
   const [filter, setFilter] = useState<"all" | "pending" | "accepted" | "declined" | "revealed">("all");
   const [search, setSearch] = useState("");
 
-  const handleAccept = (matchId: string) => {
+  useEffect(() => {
+    async function loadDonorRequests() {
+      if (!user?.id) return;
+      try {
+        const { data, error } = await supabase
+          .from("request_matches")
+          .select("*, requests(*)")
+          .eq("donor_id", user.id);
+
+        if (data && !error && data.length > 0) {
+          const mapped: RequestWithDetails[] = data.map((item: any) => ({
+            id: item.id,
+            request_id: item.request_id,
+            donor_id: item.donor_id,
+            status: item.status || "notified",
+            distance_km: 1.5,
+            notified_at: item.notified_at || item.created_at || new Date().toISOString(),
+            responded_at: item.responded_at,
+            revealed_at: item.revealed_at,
+            blood_type_needed: item.requests?.blood_type_needed || "O-",
+            hospital_name: item.requests?.hospital_name || "General Hospital",
+            hospital_area: item.requests?.hospital_area || "Manila",
+            urgency: item.requests?.urgency_level || "within_hours",
+            units: item.requests?.units_needed || 1,
+            seeker_anonymous_id: item.requests?.seeker_name || `Seeker #${item.request_id?.slice(0, 4) || "001"}`,
+          }));
+          setRequests(mapped);
+        }
+      } catch (err) {
+        console.error("Error loading donor requests:", err);
+      }
+    }
+
+    loadDonorRequests();
+  }, [user?.id]);
+
+  const handleAccept = async (matchId: string) => {
+    const respondedAt = new Date().toISOString();
     setRequests((prev) =>
       prev.map((r) =>
         r.id === matchId
-          ? { ...r, status: "accepted" as const, responded_at: new Date().toISOString() }
+          ? { ...r, status: "accepted" as const, responded_at: respondedAt }
           : r
       )
     );
+    try {
+      await supabase
+        .from("request_matches")
+        .update({
+          status: "accepted",
+          responded_at: respondedAt,
+        })
+        .eq("id", matchId);
+    } catch (err) {
+      console.error("Error updating match accept:", err);
+    }
     toast.success("Request accepted! Proceed to verification.");
   };
 
-  const handleDecline = (matchId: string) => {
+  const handleDecline = async (matchId: string) => {
+    const respondedAt = new Date().toISOString();
     setRequests((prev) =>
       prev.map((r) =>
         r.id === matchId
-          ? { ...r, status: "declined" as const, responded_at: new Date().toISOString() }
+          ? { ...r, status: "declined" as const, responded_at: respondedAt }
           : r
       )
     );
+    try {
+      await supabase
+        .from("request_matches")
+        .update({
+          status: "declined",
+          responded_at: respondedAt,
+        })
+        .eq("id", matchId);
+    } catch (err) {
+      console.error("Error updating match decline:", err);
+    }
     toast.success("Request declined. Next donor will be notified.");
   };
 

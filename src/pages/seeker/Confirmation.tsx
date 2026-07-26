@@ -12,13 +12,26 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import toast from "react-hot-toast";
+import { supabase } from "@/utils/supabaseClient";
+import { parseHospitalArea } from "@/utils/requestHelpers";
 
 interface ConfirmationState {
-  donorId: string;
-  bloodType: string;
-  hospital: string;
-  email: string;
+  requestId?: string;
+  donorId?: string;
+  bloodType?: string;
+  hospital?: string;
+  email?: string;
+}
+interface RequestDetails {
+  id: string;
+  blood_type_needed: string;
+  hospital_name: string;
+  hospital_area: string;
+  seeker_email: string;
+  expires_at: string | null;
+  urgency_level: string | null;
+  matchStatus: string | null;
+  donorDisplayId: string | null;
 }
 
 export default function SeekerConfirmation() {
@@ -42,6 +55,100 @@ export default function SeekerConfirmation() {
   }, [countdown]);
 
   if (!state) return null;
+
+  const [details, setDetails] = useState<RequestDetails | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [countdownMinutes, setCountdownMinutes] = useState(0);
+
+  const requestId = state?.requestId;
+
+  useEffect(() => {
+    if (!requestId) {
+      navigate("/", { replace: true });
+      return;
+    }
+
+    async function loadRequest() {
+      setLoading(true);
+      try {
+        const { data, error } = await supabase
+          .from("requests")
+          .select(
+            `
+          id,
+          blood_type_needed,
+          hospital_name,
+          notes,
+          seeker_email,
+          expires_at,
+          urgency_level,
+          request_matches (
+            id,
+            status,
+            notified_at,
+            responded_at,
+            users:donor_id ( display_id )
+          )
+        `,
+          )
+          .eq("id", requestId)
+          .single();
+
+        if (error || !data) {
+          console.error("Failed to load request:", error);
+          // fallback to router state if DB fetch fails
+          if (state) {
+            setDetails({
+              id: requestId || "",
+              blood_type_needed: state.bloodType || "",
+              hospital_name: state.hospital || "",
+              hospital_area: "",
+              seeker_email: state.email || "",
+              expires_at: null,
+              urgency_level: null,
+              matchStatus: null,
+              donorDisplayId: state.donorId || null,
+            });
+          }
+          return;
+        }
+
+        const match = Array.isArray(data.request_matches)
+          ? data.request_matches[0]
+          : data.request_matches;
+
+        setDetails({
+          id: data.id,
+          blood_type_needed: data.blood_type_needed,
+          hospital_name: data.hospital_name || "",
+          hospital_area: parseHospitalArea(data.notes),
+          seeker_email: data.seeker_email,
+          expires_at: data.expires_at,
+          urgency_level: data.urgency_level,
+          matchStatus: match?.status ?? null,
+          donorDisplayId:
+            match?.users?.[0]?.display_id ?? state?.donorId ?? null,
+        });
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    loadRequest();
+  }, [requestId, navigate, state]);
+
+  useEffect(() => {
+    if (!details?.expires_at) return;
+
+    const tick = () => {
+      const remainingMs = new Date(details.expires_at!).getTime() - Date.now();
+      setCountdownMinutes(Math.max(0, Math.ceil(remainingMs / 60000)));
+    };
+
+    tick();
+    const timer = setInterval(tick, 30_000); // refresh every 30s
+    return () => clearInterval(timer);
+  }, [details?.expires_at]);
 
   return (
     <div className="min-h-[calc(100vh-4rem)] bg-gradient-to-br from-success/5 to-primary/5 flex items-center justify-center px-4 py-12">
@@ -74,7 +181,9 @@ export default function SeekerConfirmation() {
               <div className="space-y-3">
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-500">Blood type needed:</span>
-                  <span className="font-semibold text-primary">{state.bloodType}</span>
+                  <span className="font-semibold text-primary">
+                    {state.bloodType}
+                  </span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-500">Hospital:</span>
@@ -96,7 +205,9 @@ export default function SeekerConfirmation() {
               <ol className="text-gray-600 mt-1 space-y-1 list-decimal list-inside">
                 <li>The donor will be notified anonymously</li>
                 <li>If they accept, both of you will verify your identities</li>
-                <li>Only after mutual verification will contact info be exchanged</li>
+                <li>
+                  Only after mutual verification will contact info be exchanged
+                </li>
               </ol>
             </div>
           </div>
@@ -107,8 +218,9 @@ export default function SeekerConfirmation() {
             <div className="text-sm">
               <p className="font-medium text-dark">Response window</p>
               <p className="text-gray-600 mt-1">
-                For urgent requests, the donor has ~2 hours to respond. If they don't respond
-                or decline, we'll automatically try the next compatible donor.
+                For urgent requests, the donor has ~2 hours to respond. If they
+                don't respond or decline, we'll automatically try the next
+                compatible donor.
               </p>
               <p className="text-warning font-medium mt-2">
                 {countdown > 0
@@ -124,8 +236,8 @@ export default function SeekerConfirmation() {
             <div className="text-sm">
               <p className="font-medium text-dark">Check your email</p>
               <p className="text-gray-600 mt-1">
-                We'll notify you at <strong>{state.email}</strong> when the donor responds.
-                No further action is needed from you right now.
+                We'll notify you at <strong>{state.email}</strong> when the
+                donor responds. No further action is needed from you right now.
               </p>
             </div>
           </div>

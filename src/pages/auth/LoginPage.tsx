@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import toast from "react-hot-toast";
 
+import { supabase } from "@/utils/supabaseClient";
+
 interface LoginFormValues {
   email: string;
   password: string;
@@ -23,14 +25,28 @@ export default function LoginPage() {
     formState: { errors },
   } = useForm<LoginFormValues>();
 
-  const onSubmit = async (_data: LoginFormValues) => {
+  const onSubmit = async (data: LoginFormValues) => {
     setIsLoading(true);
-    // Simulate API call
-    setTimeout(() => {
-      setIsLoading(false);
+    try {
+      const { error } = await supabase.auth.signInWithPassword({
+        email: data.email,
+        password: data.password,
+      });
+
+      if (error) {
+        toast.error(error.message || "Failed to sign in. Please check your credentials.");
+        setIsLoading(false);
+        return;
+      }
+
       toast.success("Welcome back!");
       navigate("/dashboard");
-    }, 1500);
+    } catch (err: any) {
+      console.error("Login error:", err);
+      toast.error(err?.message || "An unexpected error occurred during sign in.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (

@@ -15,6 +15,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import toast from "react-hot-toast";
+import { supabase } from "@/utils/supabaseClient";
 
 interface ResetPasswordForm {
   password: string;
@@ -52,16 +53,26 @@ export default function ResetPasswordPage() {
   const strengthLabels = ["Weak", "Fair", "Good", "Strong"];
 
   const onSubmit = async (data: ResetPasswordForm) => {
-    if (!token) {
-      toast.error("Invalid or expired reset token");
-      return;
-    }
     setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
+    try {
+      const { error } = await supabase.auth.updateUser({
+        password: data.password,
+      });
+
+      if (error) {
+        toast.error(error.message || "Failed to reset password.");
+        setIsLoading(false);
+        return;
+      }
+
       toast.success("Password reset successfully!");
       navigate("/login");
-    }, 1500);
+    } catch (err: any) {
+      console.error("Reset password error:", err);
+      toast.error(err?.message || "An unexpected error occurred.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   if (!token) {

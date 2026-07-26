@@ -55,29 +55,79 @@ export default function ConnectScreen() {
     },
   };
 
+import { supabase } from "@/utils/supabaseClient";
+
   const handleSendOTP = () => {
     setOtpSent(true);
     toast.success("Verification code sent to your email");
   };
 
-  const handleVerify = () => {
+  const handleVerify = async () => {
     if (otp.length < 4) {
       toast.error("Please enter the verification code");
       return;
     }
     setIsVerifying(true);
-    setTimeout(() => {
-      setIsVerifying(false);
+    const nowStr = new Date().toISOString();
+    try {
+      if (matchId) {
+        // 1. Update request_matches table
+        await supabase
+          .from("request_matches")
+          .update({
+            contact_revealed: true,
+            revealed_at: nowStr,
+            status: "accepted",
+          })
+          .eq("id", matchId);
+
+        // 2. Audit contact reveal in contact_reveal_audit table
+        await supabase.from("contact_reveal_audit").insert({
+          request_id: matchData.id,
+          donor_id: matchData.donor.real_name,
+          seeker_email: matchData.seeker.email,
+          reveal_timestamp: nowStr,
+        });
+      }
       setStep("revealed");
       setShowContact(true);
       toast.success("Verification successful! Contact info revealed.");
-    }, 1500);
+    } catch (err: any) {
+      console.error("Contact reveal error:", err);
+      toast.error(err?.message || "Failed to complete verification.");
+    } finally {
+      setIsVerifying(false);
+    }
   };
 
-  const handleMarkFulfilled = () => {
-    setStep("fulfilled");
-    toast.success("Donation marked as fulfilled. Thank you!");
-    setTimeout(() => navigate("/dashboard"), 2000);
+  const handleMarkFulfilled = async () => {
+    const nowStr = new Date().toISOString();
+    try {
+      if (matchId) {
+        // 1. Update request_matches table
+        await supabase
+          .from("request_matches")
+          .update({
+            status: "fulfilled",
+          })
+          .eq("id", matchId);
+
+        // 2. Insert into donations table
+        await supabase.from("donations").insert({
+          donation_date: nowStr,
+          volume_ml: 450,
+          status: "completed",
+          notes: "Fulfilled via match connect screen",
+          created_at: nowStr,
+        });
+      }
+      setStep("fulfilled");
+      toast.success("Donation marked as fulfilled. Thank you!");
+      setTimeout(() => navigate("/dashboard"), 2000);
+    } catch (err: any) {
+      console.error("Fulfill error:", err);
+      toast.error(err?.message || "Failed to mark as fulfilled.");
+    }
   };
 
   return (

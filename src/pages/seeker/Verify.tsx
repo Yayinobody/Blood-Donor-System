@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import toast from "react-hot-toast";
+import { supabase } from "@/utils/supabaseClient";
 
 export default function SeekerVerify() {
   const navigate = useNavigate();
@@ -34,17 +35,31 @@ export default function SeekerVerify() {
     toast.success("Verification code sent to " + email);
   };
 
-  const handleVerify = () => {
+  const handleVerify = async () => {
     if (otp.length < 4) {
       toast.error("Please enter the verification code");
       return;
     }
     setIsVerifying(true);
-    setTimeout(() => {
-      setIsVerifying(false);
+    try {
+      if (matchId && matchId !== "unknown") {
+        await supabase
+          .from("request_matches")
+          .update({
+            contact_revealed: true,
+            revealed_at: new Date().toISOString(),
+            status: "accepted",
+          })
+          .eq("id", matchId);
+      }
       setStep("verified");
       toast.success("Verification successful! Contact info will be exchanged.");
-    }, 1500);
+    } catch (err: any) {
+      console.error("Verification error:", err);
+      toast.error(err?.message || "Verification failed");
+    } finally {
+      setIsVerifying(false);
+    }
   };
 
   return (

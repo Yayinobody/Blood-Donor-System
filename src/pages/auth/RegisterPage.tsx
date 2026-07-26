@@ -17,6 +17,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import toast from "react-hot-toast";
+import { supabase } from "@/utils/supabaseClient";
 
 interface RegisterFormValues {
   fullName: string;
@@ -57,13 +58,59 @@ export default function RegisterPage() {
   const strengthColors = ["bg-error", "bg-warning", "bg-warning", "bg-success"];
   const strengthLabels = ["Weak", "Fair", "Good", "Strong"];
 
-  const onSubmit = async (_data: RegisterFormValues) => {
+  const onSubmit = async (data: RegisterFormValues) => {
+    if (!selectedBloodType && !data.bloodType) {
+      toast.error("Please select a blood type");
+      return;
+    }
+
     setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
+    const bloodTypeToSave = selectedBloodType || data.bloodType;
+
+    try {
+      // 1. Create auth user
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: data.email,
+        password: data.password,
+      });
+
+      if (authError) {
+        toast.error(authError.message || "Failed to create account.");
+        setIsLoading(false);
+        return;
+      }
+
+      const userId = authData.user?.id;
+      const displayId = `Donor #${Math.floor(100 + Math.random() * 900)}`;
+
+      if (userId) {
+        // 2. Insert into 'users' table
+        const { error: dbError } = await supabase.from("users").upsert({
+          id: userId,
+          role: "donor",
+          full_name: data.fullName,
+          email: data.email,
+          blood_type: bloodTypeToSave,
+          display_id: displayId,
+          availability_status: "available",
+          is_verified: false,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        });
+
+        if (dbError) {
+          console.warn("Could not insert user profile into DB table:", dbError.message);
+        }
+      }
+
       toast.success("Account created successfully!");
       navigate("/dashboard");
-    }, 1500);
+    } catch (err: any) {
+      console.error("Registration error:", err);
+      toast.error(err?.message || "An error occurred while creating your account.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
