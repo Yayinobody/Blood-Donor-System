@@ -27,33 +27,9 @@ import {
   Tooltip,
 } from "recharts";
 import toast from "react-hot-toast";
-// import type { RequestMatch, UrgencyLevel } from "@/types";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/utils/supabaseClient";
 import { CalibrateLocationButton } from "@/components/ui/CalibrateLocationButton";
-
-// Mock incoming requests fallback
-// const MOCK_REQUESTS: (RequestMatch & {
-//   blood_type_needed: string;
-//   hospital_area: string;
-//   hospital_name: string;
-//   urgency: UrgencyLevel;
-//   units: number;
-// })[] = [
-//   {
-//     id: "match-001",
-//     request_id: "req-001",
-//     donor_id: "donor-482",
-//     status: "notified",
-//     distance_km: 1.2,
-//     notified_at: "2026-07-21T08:00:00Z",
-//     blood_type_needed: "O-",
-//     hospital_area: "Ermita, Manila",
-//     hospital_name: "PGH Blood Bank",
-//     urgency: "within_hours",
-//     units: 2,
-//   },
-// ];
 
 // Mock stats
 const donationTrend = [
@@ -74,7 +50,7 @@ const item = { hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0 } };
 
 export default function DonorDashboard() {
   const { user, profile } = useAuth();
-  const [requests, setRequests] = useState<any[]>(MOCK_REQUESTS);
+  const [requests, setRequests] = useState<any[]>([]);
 
   useEffect(() => {
     const fetchMatches = async () => {
@@ -312,7 +288,19 @@ function RequestCard({
   onAccept,
   onDecline,
 }: {
-  request: (typeof MOCK_REQUESTS)[number];
+  request: {
+    id: string;
+    request_id: string;
+    donor_id: string;
+    status: string;
+    distance_km: number;
+    notified_at: string;
+    blood_type_needed: string;
+    hospital_area: string;
+    hospital_name: string;
+    urgency: string;
+    units: number;
+  };
   onAccept: () => void;
   onDecline: () => void;
 }) {
