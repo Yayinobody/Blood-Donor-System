@@ -25,12 +25,14 @@ import toast from "react-hot-toast";
 import { supabase } from "@/utils/supabaseClient";
 import { contactRevealService, type ContactRevealData } from "@/services/contactRevealService";
 import { verificationService } from "@/services/verificationService";
+import { useAuth } from "@/context/AuthContext";
 
 type Step = "pending" | "verification_required" | "awaiting_seeker" | "revealed" | "fulfilled";
 
 export default function ConnectScreen() {
   const { matchId } = useParams<{ matchId: string }>();
   const navigate = useNavigate();
+  const { refreshProfile } = useAuth();
 
   const [step, setStep] = useState<Step>("pending");
   const [matchData, setMatchData] = useState<any>(null);
@@ -161,6 +163,7 @@ export default function ConnectScreen() {
       const donorId = matchData?.donor_id;
       if (!matchId || !donorId) throw new Error("Missing match or donor information.");
       await contactRevealService.completeDonation(matchId, donorId);
+      await refreshProfile();
       setStep("fulfilled");
       toast.success("Donation marked as fulfilled. Thank you!");
       setTimeout(() => navigate("/dashboard"), 2500);

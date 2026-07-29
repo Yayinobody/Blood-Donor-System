@@ -3,7 +3,6 @@ import { useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import { CheckCircle, Loader2, XCircle, Droplets, Mail } from "lucide-react";
 import { supabase } from "@/utils/supabaseClient";
-import toast from "react-hot-toast";
 
 type PageState = "loading" | "confirmed" | "already_used" | "error";
 

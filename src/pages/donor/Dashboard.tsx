@@ -32,6 +32,8 @@ import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/utils/supabaseClient";
 import { CalibrateLocationButton } from "@/components/ui/CalibrateLocationButton";
 
+import { eligibilityService } from "@/services/eligibilityService";
+
 // Mock incoming requests fallback
 const MOCK_REQUESTS: (RequestMatch & {
   blood_type_needed: string;
@@ -39,21 +41,7 @@ const MOCK_REQUESTS: (RequestMatch & {
   hospital_name: string;
   urgency: UrgencyLevel;
   units: number;
-})[] = [
-  {
-    id: "match-001",
-    request_id: "req-001",
-    donor_id: "donor-482",
-    status: "notified",
-    distance_km: 1.2,
-    notified_at: "2026-07-21T08:00:00Z",
-    blood_type_needed: "O-",
-    hospital_area: "Ermita, Manila",
-    hospital_name: "PGH Blood Bank",
-    urgency: "within_hours",
-    units: 2,
-  },
-];
+})[] = [];
 
 // Mock stats
 const donationTrend = [
@@ -69,13 +57,32 @@ const container = {
 const item = { hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0 } };
 
 export default function DonorDashboard() {
-  const { user, profile } = useAuth();
-  const [requests, setRequests] = useState<any[]>(MOCK_REQUESTS);
+  const { user, profile, refreshProfile } = useAuth();
+  const [requests, setRequests] = useState<any[]>([]);
+  const [donationsCount, setDonationsCount] = useState<number>(0);
 
   useEffect(() => {
-    const fetchMatches = async () => {
+    const fetchMatchesAndStats = async () => {
       if (!user) return;
       try {
+        // Auto-reset availability if eligibility rest window has passed
+        const resetDone = await eligibilityService.resetAvailabilityIfEligible(user.id);
+        if (resetDone) {
+          await refreshProfile();
+        }
+
+        // Fetch real total donations count
+        const { count: totalCount } = await supabase
+          .from("donations")
+          .select("*", { count: "exact", head: true })
+          .eq("donor_id", user.id)
+          .eq("status", "completed");
+
+        if (totalCount !== null) {
+          setDonationsCount(totalCount);
+        }
+
+        // Fetch matches
         const { data, error } = await supabase
           .from("request_matches")
           .select(`
@@ -119,10 +126,10 @@ export default function DonorDashboard() {
           setRequests([]);
         }
       } catch (err: any) {
-        console.error("Error fetching donor matches:", err.message);
+        console.error("Error fetching donor matches/stats:", err.message);
       }
     };
-    fetchMatches();
+    fetchMatchesAndStats();
   }, [user]);
 
   const handleAccept = (matchId: string) => {
@@ -143,8 +150,13 @@ export default function DonorDashboard() {
   const displayId = profile?.display_id || "Donor Profile";
   const bloodType = profile?.blood_type || "O+";
   const isAvailable = (profile?.availability_status || "available") === "available";
+  const isResting = profile?.availability_status === "resting";
 
-  // Calculate next eligible date formatting
+  // Calculate next eligible date formatting and days remaining
+  const daysRemaining = profile?.next_eligible_date
+    ? eligibilityService.daysUntilEligible(profile.next_eligible_date)
+    : 0;
+
   const nextEligibleText = profile?.next_eligible_date
     ? new Date(profile.next_eligible_date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
     : "Eligible Now";
@@ -158,8 +170,8 @@ export default function DonorDashboard() {
             Welcome back, <span className="text-primary">{displayName}</span>
           </h1>
           <div className="text-gray-500 mt-1 flex items-center gap-2">
-            <Badge variant={isAvailable ? "success" : "warning"} className="gap-1">
-              <CheckCircle className="h-3 w-3" /> {isAvailable ? "Available" : "Resting"}
+            <Badge variant={isAvailable ? "success" : isResting ? "warning" : "secondary"} className="gap-1">
+              <CheckCircle className="h-3 w-3" /> {isAvailable ? "Available" : isResting ? "Resting" : "Unavailable"}
             </Badge>
             ID: <span className="font-medium text-gray-700">{displayId}</span> • Blood type: <span className="font-semibold text-primary">{bloodType}</span>
           </div>
@@ -174,12 +186,30 @@ export default function DonorDashboard() {
         </div>
       </div>
 
+      {/* Resting Medical Notice Banner */}
+      {isResting && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex gap-3 items-start text-sm">
+          <Clock className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+          <div className="space-y-1 text-amber-900">
+            <p className="font-semibold text-base">Medical Rest Period Active 🩺</p>
+            <p className="text-amber-800">
+              You recently completed a blood donation. In line with WHO/DOH safety standards, your availability is set to <strong>Resting</strong> for 12 weeks to allow your body to recover.
+            </p>
+            <p className="text-xs font-medium text-amber-700">
+              {daysRemaining > 0
+                ? `Next eligible to donate in ${daysRemaining} days (${nextEligibleText}). Your availability will automatically return to Available once this window passes.`
+                : "Your rest period is concluding. Refresh to update availability."}
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Stats cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard icon={Bell} label="Pending Requests" value={requests.filter((r) => r.status === "notified").length} color="warning" />
-        <StatCard icon={CheckCircle} label="Lives Helped" value={1} color="success" />
-        <StatCard icon={Droplets} label="Total Donations" value={1} color="primary" />
-        <StatCard icon={Clock} label="Next Eligible" value={nextEligibleText} color="blue" />
+        <StatCard icon={CheckCircle} label="Lives Helped" value={donationsCount} color="success" />
+        <StatCard icon={Droplets} label="Total Donations" value={donationsCount} color="primary" />
+        <StatCard icon={Clock} label="Next Eligible" value={isAvailable ? "Eligible Now" : nextEligibleText} color="blue" />
       </div>
 
       {/* Incoming Requests */}
