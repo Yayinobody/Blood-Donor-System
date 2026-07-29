@@ -64,7 +64,7 @@ interface Coordinates {
 // ============================================================
 const DEFAULT_CENTER: Coordinates = { lat: 9.3116757, lng: 123.306241 };
 const DEFAULT_RADIUS = 5; // increased from 1 to show more donors
-const MAX_RADIUS = 50;
+const MAX_RADIUS = 100;
 const RADIUS_STEP = 1;
 
 // ============================================================
@@ -292,6 +292,7 @@ function SectionWrapper({
   );
 }
 
+// ===================== FIXED DonorCard =====================
 const DonorCard = memo(function DonorCard({ donor }: { donor: AnonymizedDonor }) {
   const isAvailable = donor.availability_status === "available";
 
@@ -336,15 +337,18 @@ const DonorCard = memo(function DonorCard({ donor }: { donor: AnonymizedDonor })
             </div>
           </div>
         </div>
-        <Link to={`/seeker/request/${donor.id || donor.display_id}`}>
-          <Button
-            size="sm"
-            disabled={!isAvailable}
-            className={isAvailable ? "bg-primary" : "bg-gray-300"}
-          >
+        {/* FIX: Only render Link if available, else just a disabled button */}
+        {isAvailable ? (
+          <Link to={`/seeker/request/${donor.id || donor.display_id}`}>
+            <Button size="sm" className="bg-primary">
+              Request
+            </Button>
+          </Link>
+        ) : (
+          <Button size="sm" disabled className="bg-gray-300">
             Request
           </Button>
-        </Link>
+        )}
       </div>
     </motion.div>
   );
@@ -485,19 +489,18 @@ function RadiusMarkerCluster({
                         )}
                       </div>
                     </div>
-                    <Link to={`/seeker/request/${donor.id || donor.display_id}`}>
-                      <Button
-                        size="sm"
-                        disabled={donor.availability_status !== "available"}
-                        className={
-                          donor.availability_status === "available"
-                            ? "bg-primary ml-2 flex-shrink-0"
-                            : "bg-gray-300 ml-2 flex-shrink-0"
-                        }
-                      >
+                    {/* ✅ FIXED: Only link when available */}
+                    {donor.availability_status === "available" ? (
+                      <Link to={`/seeker/request/${donor.id || donor.display_id}`}>
+                        <Button size="sm" className="bg-primary ml-2 flex-shrink-0">
+                          Request
+                        </Button>
+                      </Link>
+                    ) : (
+                      <Button size="sm" disabled className="bg-gray-300 ml-2 flex-shrink-0">
                         Request
                       </Button>
-                    </Link>
+                    )}
                   </div>
                 </div>
               ))}

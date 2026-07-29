@@ -69,6 +69,13 @@ export default function SeekerRequestForm() {
     },
   });
 
+  // ✅ NEW: Pre‑fill blood type when donor info is loaded
+  useEffect(() => {
+    if (donorInfo?.blood_type) {
+      setValue("blood_type_needed", donorInfo.blood_type);
+    }
+  }, [donorInfo, setValue]);
+
   const selectedUrgency = watch("urgency");
 
   const onSubmit = async (data: SeekerRequestFormValues) => {
