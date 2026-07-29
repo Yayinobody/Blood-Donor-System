@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   Eye,
   EyeOff,
@@ -10,6 +10,8 @@ import {
   User,
   Mail,
   Lock,
+  X,
+  ShieldCheck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,6 +24,7 @@ interface RegisterFormValues {
   password: string;
   confirmPassword: string;
   bloodType: string;
+  acceptTerms: boolean;
 }
 
 const bloodTypes = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"];
@@ -30,6 +33,7 @@ export default function RegisterPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [selectedBloodType, setSelectedBloodType] = useState("");
+  const [showTermsModal, setShowTermsModal] = useState(false);
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   const navigate = useNavigate();
   const { signUp } = useAuth();
@@ -80,6 +84,10 @@ export default function RegisterPage() {
   const onSubmit = async (data: RegisterFormValues) => {
     if (data.password !== data.confirmPassword) {
       toast.error('Passwords do not match.');
+      return;
+    }
+    if (!data.acceptTerms) {
+      toast.error('You must accept the terms and safety guidelines to register.');
       return;
     }
     setIsLoading(true);
@@ -346,6 +354,44 @@ export default function RegisterPage() {
               )}
             </motion.div>
 
+            {/* Terms & Conditions / Safety Acknowledgment Checkbox */}
+            <motion.div
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.95 }}
+              className="pt-2"
+            >
+              <div className="flex items-start space-x-3">
+                <input
+                  type="checkbox"
+                  id="acceptTerms"
+                  className="mt-1 h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer"
+                  {...register("acceptTerms", {
+                    required: "You must agree to the terms and safety guidelines to create an account",
+                  })}
+                />
+                <label htmlFor="acceptTerms" className="text-xs text-gray-600 leading-relaxed cursor-pointer">
+                  I agree to AnonBlood's safety guidelines and{" "}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setShowTermsModal(true);
+                    }}
+                    className="text-primary font-medium hover:underline focus:outline-none"
+                  >
+                    Terms & Conditions
+                  </button>
+                  , acknowledging that donations must occur at licensed medical facilities and AnonBlood does not supervise offline arrangements.
+                </label>
+              </div>
+              {errors.acceptTerms && (
+                <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-1 text-sm text-error">
+                  {errors.acceptTerms.message}
+                </motion.p>
+              )}
+            </motion.div>
+
             {/* Submit */}
             <motion.div
               initial={{ opacity: 0, y: 10 }}
@@ -396,6 +442,75 @@ export default function RegisterPage() {
           </motion.p>
         </div>
       </motion.div>
+
+      {/* Terms & Conditions Modal */}
+      <AnimatePresence>
+        {showTermsModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-gray-100 relative max-h-[90vh] overflow-y-auto"
+            >
+              <div className="flex items-center justify-between mb-4 pb-3 border-b border-gray-100">
+                <div className="flex items-center space-x-2">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                    <ShieldCheck className="h-5 w-5" />
+                  </div>
+                  <h3 className="text-lg font-bold text-dark">Terms & Safety Guidelines</h3>
+                </div>
+                <button
+                  onClick={() => setShowTermsModal(false)}
+                  className="text-gray-400 hover:text-gray-600 p-1 rounded-lg hover:bg-gray-100 transition-colors"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <div className="space-y-4 text-sm text-gray-600 leading-relaxed">
+                <div>
+                  <h4 className="font-semibold text-dark mb-1">AnonBlood's Role & Scope</h4>
+                  <p>
+                    Once contact details are revealed or connection is established, <strong>AnonBlood's role ends</strong> — arranging the donation, coordinating with the hospital, and everything else happens directly between seeker and donor.
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <h4 className="font-semibold text-dark mb-1">Important Safety Reminders</h4>
+                  <ul className="list-disc pl-5 space-y-1.5">
+                    <li>
+                      <strong>Meet safely.</strong> Choose a public place, or coordinate the donation directly through the hospital or blood bank.
+                    </li>
+                    <li>
+                      <strong>Donations should always go through proper medical screening</strong> at a licensed facility — never arrange collection outside of one.
+                    </li>
+                    <li>
+                      <strong>AnonBlood does not verify or supervise</strong> what happens after connection, including the donation itself, any in-person meeting, or any arrangement between parties.
+                    </li>
+                    <li>
+                      If something feels wrong or unsafe, you can report it to our team at any time.
+                    </li>
+                  </ul>
+                </div>
+              </div>
+
+              <div className="mt-6 pt-4 border-t border-gray-100 flex gap-3">
+                <Button
+                  type="button"
+                  className="w-full bg-primary hover:bg-primary-600 text-white"
+                  onClick={() => {
+                    setValue("acceptTerms", true, { shouldValidate: true, shouldDirty: true });
+                    setShowTermsModal(false);
+                  }}
+                >
+                  I Understand — Continue
+                </Button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

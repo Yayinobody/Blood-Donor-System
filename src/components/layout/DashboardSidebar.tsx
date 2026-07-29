@@ -34,9 +34,6 @@ const adminLinks = [
   { name: "Verification Queue", path: "/admin/verifications", icon: ShieldCheck },
 ];
 
-const generalLinks = [
-  { name: "Settings", path: "/settings", icon: Settings },
-];
 
 export default function DashboardSidebar({
   collapsed,
@@ -120,14 +117,6 @@ export default function DashboardSidebar({
           </>
         )}
 
-        {generalLinks.map((link) => (
-          <NavItem
-            key={link.path}
-            link={link}
-            active={location.pathname === link.path}
-            collapsed={collapsed}
-          />
-        ))}
       </nav>
 
       {/* User info */}
