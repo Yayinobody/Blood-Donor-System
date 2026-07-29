@@ -5,7 +5,6 @@ import {
   User,
   History,
   MapPin,
-  Settings,
   ChevronLeft,
   ChevronRight,
   X,

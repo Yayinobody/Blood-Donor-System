@@ -30,6 +30,7 @@ import toast from "react-hot-toast";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/utils/supabaseClient";
 import { CalibrateLocationButton } from "@/components/ui/CalibrateLocationButton";
+import { eligibilityService } from "@/services/eligibilityService";
 
 // Mock stats
 const donationTrend = [
@@ -49,8 +50,9 @@ const container = {
 const item = { hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0 } };
 
 export default function DonorDashboard() {
-  const { user, profile } = useAuth();
+  const { user, profile, refreshProfile } = useAuth();
   const [requests, setRequests] = useState<any[]>([]);
+  const [donationsCount, setDonationsCount] = useState<number>(0);
 
   useEffect(() => {
     const fetchMatchesAndStats = async () => {
@@ -115,6 +117,21 @@ export default function DonorDashboard() {
           setRequests(mapped);
         } else {
           setRequests([]);
+        }
+
+        // Fetch donations count & check eligibility status reset
+        const { count } = await supabase
+          .from("donation_history")
+          .select("*", { count: "exact", head: true })
+          .eq("donor_id", user.id);
+
+        setDonationsCount(count || 0);
+
+        if (profile) {
+          const reset = await eligibilityService.resetAvailabilityIfEligible(user.id);
+          if (reset) {
+            await refreshProfile();
+          }
         }
       } catch (err: any) {
         console.error("Error fetching donor matches/stats:", err.message);
@@ -200,7 +217,7 @@ export default function DonorDashboard() {
         <StatCard icon={Bell} label="Pending Requests" value={requests.filter((r) => r.status === "notified").length} color="warning" />
         <StatCard icon={CheckCircle} label="Lives Helped" value={donationsCount} color="success" />
         <StatCard icon={Droplets} label="Total Donations" value={donationsCount} color="primary" />
-        <StatCard icon={Clock} label="Next Eligible" value={isAvailable ? "Eligible Now" : nextEligibleText} color="blue" />
+        <StatCard icon={Clock} label="Next Eligible" value={nextEligibleText} color="blue" />
       </div>
 
       {/* Incoming Requests */}
