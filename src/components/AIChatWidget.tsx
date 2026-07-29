@@ -23,13 +23,14 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useAuth } from "@/context/AuthContext";
 
+// ✅ Fixed: allow null values to match your auth profile
 interface DonorProfile {
   id: string;
-  blood_type?: string;
-  availability_status?: string;
-  last_donation_date?: string;
-  next_eligible_date?: string;
-  display_id?: string;
+  blood_type?: string | null;
+  availability_status?: string | null;
+  last_donation_date?: string | null;
+  next_eligible_date?: string | null;
+  display_id?: string | null;
 }
 
 interface AIChatWidgetProps {
@@ -319,7 +320,7 @@ export function AIChatWidget({
                       {msg.content}
                     </ReactMarkdown>
 
-                    {/*{msg.metadata?.sources && msg.metadata.sources.length > 0 && (
+                    {/* {msg.metadata?.sources && msg.metadata.sources.length > 0 && (
                       <div className="mt-2 pt-2 border-t border-gray-200">
                         <p className="text-xs text-gray-500 font-semibold">Sources:</p>
                         <div className="flex flex-wrap gap-1 mt-1">
@@ -336,7 +337,7 @@ export function AIChatWidget({
                           ))}
                         </div>
                       </div>
-                    )}*/}
+                    )} */}
 
                     {msg.scope === "personal" && (
                       <p className="text-xs text-gray-500 mt-1 italic font-semibold">
