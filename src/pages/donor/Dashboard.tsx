@@ -27,27 +27,19 @@ import {
   Tooltip,
 } from "recharts";
 import toast from "react-hot-toast";
-import type { RequestMatch, UrgencyLevel } from "@/types";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/utils/supabaseClient";
 import { CalibrateLocationButton } from "@/components/ui/CalibrateLocationButton";
 
-import { eligibilityService } from "@/services/eligibilityService";
-
-// Mock incoming requests fallback
-const MOCK_REQUESTS: (RequestMatch & {
-  blood_type_needed: string;
-  hospital_area: string;
-  hospital_name: string;
-  urgency: UrgencyLevel;
-  units: number;
-})[] = [];
-
 // Mock stats
 const donationTrend = [
-  { month: "May", donations: 1 },
-  { month: "Jun", donations: 2 },
-  { month: "Jul", donations: 1 },
+  { month: "January", donations: 0 },
+  { month: "February", donations: 0 },
+  { month: "March", donations: 0 },
+  { month: "April", donations: 0 },
+  { month: "May", donations: 0 },
+  { month: "Jun", donations: 0 },
+  { month: "Jul", donations: 0 },
 ];
 
 const container = {
@@ -57,9 +49,8 @@ const container = {
 const item = { hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0 } };
 
 export default function DonorDashboard() {
-  const { user, profile, refreshProfile } = useAuth();
+  const { user, profile } = useAuth();
   const [requests, setRequests] = useState<any[]>([]);
-  const [donationsCount, setDonationsCount] = useState<number>(0);
 
   useEffect(() => {
     const fetchMatchesAndStats = async () => {
@@ -107,7 +98,7 @@ export default function DonorDashboard() {
         if (data) {
           // Only show matches where the blood request itself is still 'active'
           const activeMatches = data.filter((m: any) => m.requests?.status === "active");
-          
+
           const mapped = activeMatches.map((m: any) => ({
             id: m.id,
             request_id: m.request_id,
@@ -338,7 +329,19 @@ function RequestCard({
   onAccept,
   onDecline,
 }: {
-  request: (typeof MOCK_REQUESTS)[number];
+  request: {
+    id: string;
+    request_id: string;
+    donor_id: string;
+    status: string;
+    distance_km: number;
+    notified_at: string;
+    blood_type_needed: string;
+    hospital_area: string;
+    hospital_name: string;
+    urgency: string;
+    units: number;
+  };
   onAccept: () => void;
   onDecline: () => void;
 }) {

@@ -528,7 +528,7 @@ When proposing code:
 ## Out of Scope (non-goals)
 
 - The platform does not manage, verify, or take responsibility for hospitals, blood banks, or any
-  facility — "hospital" is a free-text field the seeker provides about their own situation.
+  facility.
 - The platform does not verify, supervise, or take responsibility for the actual blood donation,
   any in-person meeting between seeker and donor, or any arrangement (including payment) between
   them once contact is revealed.
