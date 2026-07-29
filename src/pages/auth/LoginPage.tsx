@@ -157,9 +157,9 @@ export default function LoginPage() {
                   type="button"
                   whileTap={{ scale: 0.9 }}
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  className="absolute inset-y-0 right-3 flex items-center p-0 h-auto text-gray-400 hover:text-gray-600"
                 >
-                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  {showPassword ? <EyeOff className="h-4 w-4 flex-shrink-0" /> : <Eye className="h-4 w-4 flex-shrink-0" />}
                 </motion.button>
               </div>
               {errors.password && (
