@@ -21,6 +21,16 @@ import type { AssistantMessage } from "@/types";
 import axios from "axios";
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { useAuth } from "@/context/AuthContext";
+
+interface DonorProfile {
+  id: string;
+  blood_type?: string;
+  availability_status?: string;
+  last_donation_date?: string;
+  next_eligible_date?: string;
+  display_id?: string;
+}
 
 interface AIChatWidgetProps {
   isOpen: boolean;
@@ -28,22 +38,25 @@ interface AIChatWidgetProps {
   initialMessages?: AssistantMessage[];
   position?: "bottom-right" | "bottom-left";
   className?: string;
-  apiBaseUrl?: string; // Allow custom API URL
+  apiBaseUrl?: string;
 }
 
 interface ChatResponse {
   answer: string;
+  mode: "public" | "personal";
   sources: Array<{
-    source: string;
-    file_name: string;
-    score: number;
+    organization: string;
+    document_title: string;
+    page?: string;
+    url?: string;
+    document_type?: string;
+    score?: number;
   }>;
 }
 
-// Default API Base URL
 // const DEFAULT_API_BASE_URL = "http://localhost:8000";
-
 const DEFAULT_API_BASE_URL = "https://blood-donor-system-4lpn.onrender.com";
+
 export function AIChatWidget({
   isOpen,
   onOpenChange,
@@ -52,13 +65,33 @@ export function AIChatWidget({
   className,
   apiBaseUrl = DEFAULT_API_BASE_URL,
 }: AIChatWidgetProps) {
+  const { user, profile } = useAuth();
+  const isDonorLoggedIn = user && profile && profile.id;
+
+  // Build donor profile object from context
+  const donorProfile: DonorProfile | null = isDonorLoggedIn ? {
+    id: profile.id,
+    blood_type: profile.blood_type,
+    availability_status: profile.availability_status,
+    last_donation_date: profile.last_donation_date,
+    next_eligible_date: profile.next_eligible_date,
+    display_id: profile.display_id,
+  } : null;
+
+  // UPDATED: Use full_name if available, fallback to display_id or "Donor"
+  const displayName = profile?.full_name || profile?.display_id || "Donor";
+
+  // Determine welcome message based on login state
+  const welcomeMessage = donorProfile
+    ? `Hello ${displayName}! I'm your AnonBlood AI assistant. I have access to your donation information and can answer personalized questions about your eligibility and donation status. How can I help you today?`
+    : "Hello! I'm your privacy-first AI assistant. I can help you with blood donation eligibility, compatibility, and general information. Your identity remains anonymous. How can I help you today?";
+
   const [messages, setMessages] = useState<AssistantMessage[]>(
     initialMessages || [
       {
         id: "welcome",
         role: "assistant",
-        content:
-          "Hello! I'm your privacy-first AI assistant. I can help you with blood donation eligibility, compatibility, and medical guidance. Your identity remains anonymous. How can I help you today?",
+        content: welcomeMessage,
         timestamp: new Date(),
         scope: "public",
       },
@@ -75,11 +108,23 @@ export function AIChatWidget({
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  // Reset messages when login state changes
+  useEffect(() => {
+    setMessages([
+      {
+        id: "welcome",
+        role: "assistant",
+        content: welcomeMessage,
+        timestamp: new Date(),
+        scope: "public",
+      },
+    ]);
+  }, [isDonorLoggedIn]);
+
   const handleSend = async () => {
     const messageText = input.trim();
     if (!messageText || isLoading) return;
 
-    // Clear any previous errors
     setError(null);
 
     const userMessage: AssistantMessage = {
@@ -95,27 +140,42 @@ export function AIChatWidget({
     setIsLoading(true);
 
     try {
+      const payload: any = {
+        question: messageText,
+      };
+
+      if (donorProfile && isDonorLoggedIn) {
+        payload.donor_context = {
+          id: donorProfile.id,
+          blood_type: donorProfile.blood_type || undefined,
+          availability_status: donorProfile.availability_status || undefined,
+          last_donation_date: donorProfile.last_donation_date || undefined,
+          next_eligible_date: donorProfile.next_eligible_date || undefined,
+          display_id: donorProfile.display_id || undefined,
+        };
+
+        console.log("[AI Chat] Sending personalized request with donor context:", {
+          donor_id: donorProfile.id,
+          blood_type: donorProfile.blood_type,
+          availability_status: donorProfile.availability_status,
+        });
+      } else {
+        console.log("[AI Chat] Sending public request (no donor context)");
+      }
+
       const response = await axios.post<ChatResponse>(
         `${apiBaseUrl}/api/chat`,
-        { question: messageText },
+        payload,
         {
           headers: {
             "Content-Type": "application/json",
           },
-          timeout: 30000, // 30 second timeout
+          timeout: 30000,
         }
       );
 
-      // Determine scope based on content or response
-      let scope: "public" | "personal" | "out_of_scope" = "public";
+      const scope = response.data.mode === "personal" ? "personal" : "public";
 
-      // Check if the question might be personal
-      const personalKeywords = ["my", "mine", "me", "personal", "account", "history", "my blood type"];
-      if (personalKeywords.some(keyword => messageText.toLowerCase().includes(keyword))) {
-        scope = "out_of_scope";
-      }
-
-      // Check if response contains sources
       const hasSources = response.data.sources && response.data.sources.length > 0;
 
       const aiMessage: AssistantMessage = {
@@ -124,18 +184,18 @@ export function AIChatWidget({
         content: response.data.answer,
         timestamp: new Date(),
         scope,
-        // Add sources as metadata if needed
         metadata: hasSources ? { sources: response.data.sources } : undefined,
       };
 
       setMessages((prev) => [...prev, aiMessage]);
 
-      // Log sources for debugging
       if (hasSources) {
-        console.log("Sources:", response.data.sources);
+        console.log("[AI Chat] Response sources:", response.data.sources);
       }
+
+      console.log("[AI Chat] Response mode:", scope);
     } catch (err) {
-      console.error("Error calling AI:", err);
+      console.error("[AI Chat] Error:", err);
       let errorMessage = "I'm sorry, I encountered an error. Please try again later.";
 
       if (axios.isAxiosError(err)) {
@@ -170,7 +230,6 @@ export function AIChatWidget({
     }
   };
 
-  // Focus input when chat opens
   useEffect(() => {
     if (isOpen) {
       setTimeout(() => inputRef.current?.focus(), 100);
@@ -221,7 +280,8 @@ export function AIChatWidget({
                 <span className="font-semibold">AnonBlood AI</span>
               </div>
               <p className="text-xs text-white/70 mt-0.5">
-                <Shield className="h-3 w-3 inline mr-1" /> Anonymous & encrypted session
+                <Shield className="h-3 w-3 inline mr-1" />
+                {isDonorLoggedIn ? "Personalized mode • Encrypted" : "Anonymous & encrypted session"}
               </p>
             </div>
 
@@ -250,38 +310,43 @@ export function AIChatWidget({
                         : "bg-white border text-dark rounded-bl-md"
                     )}
                   >
-                    {/* Render markdown content with bold support */}
                     <ReactMarkdown
                       remarkPlugins={[remarkGfm]}
                       components={{
-                        // Override paragraph to keep whitespace handling
                         p: ({ children }) => <p className="whitespace-pre-wrap">{children}</p>,
-                        // You can add more customizations if needed
                       }}
                     >
                       {msg.content}
                     </ReactMarkdown>
 
-                    {/* Display sources if available */}
                     {/*{msg.metadata?.sources && msg.metadata.sources.length > 0 && (
                       <div className="mt-2 pt-2 border-t border-gray-200">
-                        <p className="text-xs text-gray-500">Sources:</p>
+                        <p className="text-xs text-gray-500 font-semibold">Sources:</p>
                         <div className="flex flex-wrap gap-1 mt-1">
                           {msg.metadata.sources.map((source, idx) => (
-                            <span
-                              key={idx}
-                              className="text-xs bg-gray-100 px-2 py-0.5 rounded-full"
-                            >
-                              {source.source}
-                            </span>
+                            <div key={idx} className="text-xs bg-gray-100 px-2 py-1 rounded">
+                              <p className="font-semibold text-gray-700">{source.document_title}</p>
+                              {source.organization && (
+                                <p className="text-gray-500">{source.organization}</p>
+                              )}
+                              {source.score && (
+                                <p className="text-gray-400">Relevance: {(source.score * 100).toFixed(0)}%</p>
+                              )}
+                            </div>
                           ))}
                         </div>
                       </div>
                     )}*/}
 
+                    {msg.scope === "personal" && (
+                      <p className="text-xs text-gray-500 mt-1 italic font-semibold">
+                        Personalized answer
+                      </p>
+                    )}
+
                     {msg.scope === "out_of_scope" && (
                       <p className="text-xs text-gray-500 mt-1 italic">
-                        (Personal data not accessible in public mode)
+                        This question is outside my scope
                       </p>
                     )}
 
@@ -326,9 +391,9 @@ export function AIChatWidget({
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={handleKeyPress}
-                  placeholder="Ask about eligibility, compatibility..."
+                  placeholder={isDonorLoggedIn ? "Ask about your eligibility..." : "Ask about eligibility, compatibility..."}
                   disabled={isLoading}
-                  className="flex-1 text-sm text-black"  // 👈 Forces black text color
+                  className="flex-1 text-sm text-black"
                 />
                 <Button
                   size="icon"
@@ -341,7 +406,7 @@ export function AIChatWidget({
               </div>
               <p className="text-xs text-gray-400 mt-2 text-center">
                 <Shield className="inline h-3 w-3 mr-1" />
-                End-to-end encrypted • No personal data stored
+                {isDonorLoggedIn ? "Your data is encrypted • Not shared" : "End-to-end encrypted • No personal data stored"}
               </p>
             </div>
           </motion.div>
