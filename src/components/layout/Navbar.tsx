@@ -64,7 +64,12 @@ export default function Navbar() {
           {/* Desktop auth buttons */}
           <div className="hidden md:flex md:items-center md:space-x-3">
             <Link to="/login">
-              <Button variant="ghost" className="text-dark">Sign In</Button>
+              <Button
+                variant="ghost"
+                className="text-dark hover:text-primary hover:bg-primary/10"
+              >
+                Sign In
+              </Button>
             </Link>
             <Link to="/register">
               <Button className="bg-primary hover:bg-primary-600">Get Started</Button>
@@ -104,7 +109,12 @@ export default function Navbar() {
               ))}
               <div className="flex flex-col space-y-2 pt-2">
                 <Link to="/login" onClick={() => setMobileMenuOpen(false)}>
-                  <Button variant="outline" className="w-full">Sign In</Button>
+                  <Button
+                    variant="outline"
+                    className="w-full text-dark hover:text-primary hover:bg-primary/10"
+                  >
+                    Sign In
+                  </Button>
                 </Link>
                 <Link to="/register" onClick={() => setMobileMenuOpen(false)}>
                   <Button className="w-full bg-primary">Get Started</Button>
