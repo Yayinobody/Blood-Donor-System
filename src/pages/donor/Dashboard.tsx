@@ -33,33 +33,37 @@ import { supabase } from "@/utils/supabaseClient";
 import { CalibrateLocationButton } from "@/components/ui/CalibrateLocationButton";
 
 // Mock incoming requests fallback
-const MOCK_REQUESTS: (RequestMatch & {
-  blood_type_needed: string;
-  hospital_area: string;
-  hospital_name: string;
-  urgency: UrgencyLevel;
-  units: number;
-})[] = [
-  {
-    id: "match-001",
-    request_id: "req-001",
-    donor_id: "donor-482",
-    status: "notified",
-    distance_km: 1.2,
-    notified_at: "2026-07-21T08:00:00Z",
-    blood_type_needed: "O-",
-    hospital_area: "Ermita, Manila",
-    hospital_name: "PGH Blood Bank",
-    urgency: "within_hours",
-    units: 2,
-  },
-];
+// const MOCK_REQUESTS: (RequestMatch & {
+//   blood_type_needed: string;
+//   hospital_area: string;
+//   hospital_name: string;
+//   urgency: UrgencyLevel;
+//   units: number;
+// })[] = [
+//   {
+//     id: "match-001",
+//     request_id: "req-001",
+//     donor_id: "donor-482",
+//     status: "notified",
+//     distance_km: 1.2,
+//     notified_at: "2026-07-21T08:00:00Z",
+//     blood_type_needed: "O-",
+//     hospital_area: "Ermita, Manila",
+//     hospital_name: "PGH Blood Bank",
+//     urgency: "within_hours",
+//     units: 2,
+//   },
+// ];
 
 // Mock stats
 const donationTrend = [
-  { month: "May", donations: 1 },
-  { month: "Jun", donations: 2 },
-  { month: "Jul", donations: 1 },
+  { month: "January", donations: 0 },
+  { month: "February", donations: 0 },
+  { month: "March", donations: 0 },
+  { month: "April", donations: 0 },
+  { month: "May", donations: 0 },
+  { month: "Jun", donations: 0 },
+  { month: "Jul", donations: 0 },
 ];
 
 const container = {
@@ -100,7 +104,7 @@ export default function DonorDashboard() {
         if (data) {
           // Only show matches where the blood request itself is still 'active'
           const activeMatches = data.filter((m: any) => m.requests?.status === "active");
-          
+
           const mapped = activeMatches.map((m: any) => ({
             id: m.id,
             request_id: m.request_id,
